@@ -94,7 +94,7 @@ footer .here { font-weight: 700; color: var(--fg); }
 .sl .state .s-title { font: 600 11px var(--font-body); }
 .sl .state .s-l { font: 11.5px var(--font-mono); fill: var(--muted); font-variant-numeric: tabular-nums; }
 .sl .state .s-r { font: 700 15px var(--font-body); fill: var(--fg); font-variant-numeric: tabular-nums; }
-.sl .axis .tk .wline { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 5; }
+.sl .axis .tk .wline { stroke: var(--line); stroke-width: 1; }
 .sl .wm line { stroke: var(--wm); stroke-width: 2; stroke-dasharray: 6 4; }
 .sl .wm text { font: 600 11px var(--font-mono); fill: var(--wm); text-anchor: middle; font-variant-numeric: tabular-nums; }
 
@@ -257,19 +257,19 @@ const Lab = (() => {
    Input cards are routed to their key's row and absorbed into a hollow state card;
    output cards come out of the state card and flow right. */
 (() => {
-  const W = 1200, H = 404, V = 125;
+  const W = 1200, H = 404, V = 118;
   const { w: CW } = Lab.CARD;
   const KEYS = ["A", "B", "C"];
   const ROW = { A: 118, B: 202, C: 286 }, IN_Y = ROW.B;
-  const OP = { x: 308, y: 50, w: 264, h: 286, cx: 440 };   // left of center: the output side needs room for the watermark
+  const OP = { x: 248, y: 50, w: 264, h: 286, cx: 380 };   // left of center: the output side needs room for the watermark
   const AXIS_Y = 358;
   const MIN_GAP = (CW + 14) / V;
   const AHEAD = (OP.cx + CW) / V;
   const ROUTE = 0.9;      // seconds before arrival when a card turns toward its key's row
-  const WIN = 4;          // window size in seconds
+  const WIN = 5;          // window size in seconds
   const t8 = (t) => Lab.hms(t).slice(0, 8);
 
-  const TUMBLE = "SELECT window_start, device, count() FROM tumble(sensors, 4s) GROUP BY window_start, device";
+  const TUMBLE = "SELECT window_start, device, count() FROM tumble(sensors, 5s) GROUP BY window_start, device";
   const modes = [
     {
       id: "global", label: "Global", agg: "global", emit: "periodic", rule: "count() by device",
@@ -282,19 +282,19 @@ const Lab = (() => {
       note: "Same state, different trigger. A result is emitted as soon as an event changes it, and only for the device that changed. Nothing is repeated on a timer.",
     },
     {
-      id: "tumble", label: "Tumble window", agg: "tumble", delay: 0, rule: "count() by device, 4s windows",
+      id: "tumble", label: "Tumble window", agg: "tumble", delay: 0, rule: "count() by device, 5s windows",
       sql: TUMBLE,
-      note: "Time is cut into 4-second windows (the dashed lines). State is kept per window. The <b>watermark</b> marks how far event time has got: it moves to a window's start when the first event of that window arrives. That closes the window before it: its counts are emitted once and its state is freed.",
+      note: "Time is cut into 5-second windows (the thin vertical lines). State is kept per window. The <b>watermark</b> (the gold dashed line) marks how far event time has got: it moves to a window's start when the first event of that window arrives. That closes the window before it: its counts are emitted once and its state is freed.",
     },
     {
-      id: "late", label: "Late events", agg: "tumble", delay: 0, disorder: true, rule: "count() by device, 4s windows",
+      id: "late", label: "Late events", agg: "tumble", delay: 0, disorder: true, rule: "count() by device, 5s windows",
       sql: TUMBLE,
-      note: "Here some events arrive after they happened: the time printed on the card is older than its place on the axis. If that time is still at or after the watermark, the event is counted in its own window. If it is behind the watermark, its window has already been emitted, so the event turns grey and is dropped.",
+      note: "Here some events arrive after they happened: the time printed on the card is older than its place on the axis. If that time is still at or after the watermark (the gold dashed line), the event is counted in its own window. If it is behind the watermark, its window has already been emitted, so the event turns grey and is dropped.",
     },
     {
-      id: "delay", label: "With delay", agg: "tumble", delay: 2, disorder: true, rule: "4s windows, delay 2s",
+      id: "delay", label: "With delay", agg: "tumble", delay: 2, disorder: true, rule: "5s windows, delay 2s",
       sql: TUMBLE + " EMIT AFTER WINDOW CLOSE WITH DELAY 2s",
-      note: "The same stream as the previous tab. The watermark now waits 2 seconds longer before it moves, so two windows can be open at once and most stragglers are still counted. The price: every result comes out later.",
+      note: "The same stream as the previous tab. The watermark (gold dashed line) now waits 2 seconds longer before it moves, so two windows can be open at once and most stragglers are still counted. The price: every result comes out later.",
     },
   ];
 

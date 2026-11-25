@@ -82,6 +82,6 @@ footer .here { font-weight: 700; color: var(--fg); }
 .sl .state .s-title { font: 600 11px var(--font-body); }
 .sl .state .s-l { font: 11.5px var(--font-mono); fill: var(--muted); font-variant-numeric: tabular-nums; }
 .sl .state .s-r { font: 700 15px var(--font-body); fill: var(--fg); font-variant-numeric: tabular-nums; }
-.sl .axis .tk .wline { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 5; }
+.sl .axis .tk .wline { stroke: var(--line); stroke-width: 1; }
 .sl .wm line { stroke: var(--wm); stroke-width: 2; stroke-dasharray: 6 4; }
 .sl .wm text { font: 600 11px var(--font-mono); fill: var(--wm); text-anchor: middle; font-variant-numeric: tabular-nums; }
