@@ -36,6 +36,30 @@ const Lab = (() => {
     g.append("title").text(`${title}, ${ev.valText}, ${time}`);
   }
 
+  /* An output block: result rows that are emitted together travel as one block.
+     One colored band per row (color = key), and the time they share at the bottom.
+     rows = [{ key, l: label, r: value }]. */
+  const BLOCK = { row: 24, foot: 22 };
+  const blockH = (n) => n * BLOCK.row + BLOCK.foot;
+  let uid = 0;
+  function block(layer, rows, timeText) {
+    const w = CARD.w, h = blockH(rows.length), x0 = -w / 2, y0 = -h / 2, id = `blk${++uid}`;
+    const g = layer.append("g").attr("class", "card block");
+    g.append("clipPath").attr("id", id).append("rect").attr("x", x0).attr("y", y0).attr("width", w).attr("height", h).attr("rx", 12);
+    const inner = g.append("g").attr("clip-path", `url(#${id})`);
+    rows.forEach((r, i) => {
+      const y = y0 + i * BLOCK.row;
+      inner.append("rect").attr("x", x0).attr("y", y).attr("width", w).attr("height", BLOCK.row).style("fill", keyColor(r.key));
+      if (i) inner.append("line").attr("class", "b-sep").attr("x1", x0).attr("x2", w / 2).attr("y1", y).attr("y2", y);
+      g.append("text").attr("class", "b-l").attr("x", x0 + 12).attr("y", y + 16).text(r.l);
+      g.append("text").attr("class", "b-r").attr("x", w / 2 - 12).attr("y", y + 17).attr("text-anchor", "end").text(r.r);
+    });
+    inner.append("rect").attr("class", "b-foot").attr("x", x0).attr("y", h / 2 - BLOCK.foot).attr("width", w).attr("height", BLOCK.foot);
+    g.append("text").attr("class", "b-time").attr("x", x0 + 12).attr("y", h / 2 - 7).text(timeText);
+    g.append("title").text(`${rows.map((r) => `${r.l} ${r.r}`).join(", ")}, ${timeText}`);
+    return g;
+  }
+
   /* A state card: what an operator keeps in memory for one key. Same size as a data card, but hollow.
      rows = [{ l: label, r: number }], at most two. */
   function stateCard(layer, key, title) {
@@ -123,5 +147,5 @@ const Lab = (() => {
     return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   }
 
-  return { CARD, card, fill, flash, stateCard, setState, hms, keyColor, start, rng };
+  return { CARD, card, fill, flash, block, blockH, stateCard, setState, hms, keyColor, start, rng };
 })();

@@ -1,16 +1,17 @@
 /* Episode 2: streaming aggregation. Same stage as episode 1, but the operator now keeps state.
-   Input cards are routed to their key's row and absorbed into a hollow state card;
-   output cards come out of the state card and flow right. */
+   Input cards are routed to their key's row and absorbed into a hollow state card.
+   The output is one stream on one lane: rows emitted together leave as a single block. */
 (() => {
-  const W = 1200, H = 404, V = 118;
+  const W = 1200, H = 404, V = 96;
   const { w: CW } = Lab.CARD;
   const KEYS = ["A", "B", "C"];
   const ROW = { A: 118, B: 202, C: 286 }, IN_Y = ROW.B;
-  const OP = { x: 248, y: 50, w: 264, h: 286, cx: 380 };   // left of center: the output side needs room for the watermark
+  const OP = { x: 198, y: 50, w: 264, h: 286, cx: 330 };   // left of center: the output side needs room for the watermark
   const AXIS_Y = 358;
   const MIN_GAP = (CW + 14) / V;
   const AHEAD = (OP.cx + CW) / V;
   const ROUTE = 0.9;      // seconds before arrival when a card turns toward its key's row
+  const GROW = 1.0;       // seconds an output takes to grow out of the operator
   const WIN = 5;          // window size in seconds
   const t8 = (t) => Lab.hms(t).slice(0, 8);
 
@@ -19,17 +20,17 @@
     {
       id: "global", label: "Global", agg: "global", emit: "periodic", rule: "count() by device",
       sql: "SELECT device, count() FROM sensors GROUP BY device EMIT PERIODIC 2s",
-      note: "Now the operator has to <b>remember</b>. Each event joins its device's row and bumps the count kept in the hollow card: that is the state. Every 2 seconds the operator emits the current count of <i>every</i> device, changed or not. This is the default for an aggregation without a window.",
+      note: "Now the operator has to <b>remember</b>. Each event joins its device's row and bumps the count kept in the hollow card: that is the state. Every 2 seconds the operator emits <b>one block</b> with the current count of <i>every</i> device, changed or not. This is the default for an aggregation without a window.",
     },
     {
       id: "update", label: "On update", agg: "global", emit: "update", rule: "count() by device",
       sql: "SELECT device, count() FROM sensors GROUP BY device EMIT ON UPDATE",
-      note: "Same state, different trigger. A result is emitted as soon as an event changes it, and only for the device that changed. Nothing is repeated on a timer.",
+      note: "Same state, different trigger. A result is emitted as soon as an event changes it, and only for the device that changed: one row out for each event in. Nothing is repeated on a timer.",
     },
     {
       id: "tumble", label: "Tumble window", agg: "tumble", delay: 0, rule: "count() by device, 5s windows",
       sql: TUMBLE,
-      note: "Time is cut into 5-second windows (the thin vertical lines). State is kept per window. The <b>watermark</b> (the gold dashed line) marks how far event time has got: it moves to a window's start when the first event of that window arrives. That closes the window before it: its counts are emitted once and its state is freed.",
+      note: "Time is cut into 5-second windows (the thin vertical lines). State is kept per window. The <b>watermark</b> (the gold dashed line) marks how far event time has got: it moves to a window's start when the first event of that window arrives. That closes the window before it: its counts are emitted once, as one block, and its state is freed.",
     },
     {
       id: "late", label: "Late events", agg: "tumble", delay: 0, disorder: true, rule: "count() by device, 5s windows",
@@ -39,7 +40,7 @@
     {
       id: "delay", label: "With delay", agg: "tumble", delay: 2, disorder: true, rule: "5s windows, delay 2s",
       sql: TUMBLE + " EMIT AFTER WINDOW CLOSE WITH DELAY 2s",
-      note: "The same stream as the previous tab. The watermark (gold dashed line) now waits 2 seconds longer before it moves, so two windows can be open at once and most stragglers are still counted. The price: every result comes out later.",
+      note: "The same stream as the previous tab. The watermark (gold dashed line) now waits 2 seconds longer before it moves, so two windows can be open at once and fewer stragglers are dropped. The price: every result comes out later.",
     },
   ];
 
@@ -51,7 +52,7 @@
     const key = KEYS[Math.floor(rnd() * 3)];
     const c = 26 + Math.floor(rnd() * 13);
     let et = at;
-    if (mode.disorder && rnd() < 0.38) et = at - (3 + rnd() * 3);   // this one took a while to arrive
+    if (mode.disorder && rnd() < 0.33) et = at - (3 + rnd() * 3);   // this one took a while to arrive
     const ev = { id: ++seq, key, keyLabel: `device ${key}`, val: c, valText: `${c} °C`, at, et };
     if (windowed()) {
       // Watermark rule from WatermarkStamper::calculateWatermark: start of the window holding (max event time - delay).
@@ -67,7 +68,7 @@
   }
 
   function init(svg, m) {
-    mode = m; rnd = Lab.rng(m.disorder ? 8 : 42); seq = 0;
+    mode = m; rnd = Lab.rng(m.disorder ? 180 : 42); seq = 0;
     inputs = []; outs = []; drops = []; state = new Map();
     gen = { maxEt: -Infinity, wm: null }; wm = null; lastArrive = -9;
     svg.attr("viewBox", `0 0 ${W} ${H}`);
@@ -114,9 +115,20 @@
     if (windowed()) Lab.setState(s.g, [...s.wins.keys()].sort((a, b) => a - b).map((ws) => ({ l: t8(ws), r: s.wins.get(ws) })));
     else Lab.setState(s.g, [{ l: "count", r: s.count }]);
   }
-  function emit(key, count, timeText, T) {
-    const g = Lab.card(L.out, { key, title: `device ${key}`, valText: `count ${count}`, timeText });
-    outs.push({ g, T, y: ROW[key] });
+  /* One output stream. A single row leaves as a card; rows emitted together leave as one block.
+     batches = [{ rows: [{ key, count }], timeText }], all emitted at processing time T. */
+  function emit(batches, T) {
+    const GAP = 8;
+    const hs = batches.map((b) => (b.rows.length > 1 || b.block ? Lab.blockH(b.rows.length) : Lab.CARD.h));
+    let y = IN_Y - (d3.sum(hs) + GAP * (hs.length - 1)) / 2;
+    batches.forEach((b, i) => {
+      const one = b.rows[0];
+      const g = b.rows.length > 1 || b.block
+        ? Lab.block(L.out, b.rows.map((r) => ({ key: r.key, l: `device ${r.key}`, r: r.count })), b.timeText)
+        : Lab.card(L.out, { key: one.key, title: `device ${one.key}`, valText: `count ${one.count}`, timeText: b.timeText });
+      outs.push({ g, T, y: y + hs[i] / 2 });
+      y += hs[i] + GAP;
+    });
   }
 
   function arrive(c) {
@@ -133,7 +145,7 @@
     if (!windowed()) {
       s.count++;
       showState(s); Lab.flash(s.g);
-      if (mode.emit === "update") emit(ev.key, s.count, t8(ev.at), ev.at);
+      if (mode.emit === "update") emit([{ rows: [{ key: ev.key, count: s.count }], timeText: t8(ev.at) }], ev.at);
       return;
     }
     const ws = Math.floor(ev.et / WIN) * WIN;
@@ -144,16 +156,21 @@
 
   /* A window is final once its end is at or before the watermark: emit it once, then free its state. */
   function closeWindows(T) {
+    const closed = new Map();   // window start -> rows, one block per window
     KEYS.forEach((key) => {
       const s = state.get(key);
       if (!s) return;
-      [...s.wins.keys()].sort((a, b) => a - b).forEach((ws) => {
+      [...s.wins.keys()].forEach((ws) => {
         if (ws + WIN > wm) return;
-        emit(key, s.wins.get(ws), `${t8(ws)}–:${t8(ws + WIN).slice(6)}`, T);
+        if (!closed.has(ws)) closed.set(ws, []);
+        closed.get(ws).push({ key, count: s.wins.get(ws) });
         s.wins.delete(ws);
       });
       if (s.wins.size) showState(s); else { s.g.remove(); state.delete(key); }
     });
+    const batches = [...closed.keys()].sort((a, b) => a - b)
+      .map((ws) => ({ rows: closed.get(ws), block: true, timeText: `${t8(ws)}–:${t8(ws + WIN).slice(6)}` }));
+    if (batches.length) emit(batches, T);
   }
 
   function step(now) {
@@ -167,7 +184,8 @@
       const tt = mode.emit === "periodic" && nextTick <= now ? nextTick : Infinity;
       if (te === Infinity && tt === Infinity) break;
       if (tt <= te) {
-        KEYS.forEach((k) => { if (state.has(k)) emit(k, state.get(k).count, t8(tt), tt); });
+        const rows = KEYS.filter((k) => state.has(k)).map((k) => ({ key: k, count: state.get(k).count }));
+        if (rows.length) emit([{ rows, block: true, timeText: t8(tt) }], tt);
         nextTick += 2;
       } else arrive(inputs.shift());
     }
@@ -191,7 +209,10 @@
       }
       c.g.attr("transform", `translate(${OP.cx - V * dt},${y}) scale(${sc})`).style("opacity", op);
     });
-    outs.forEach((o) => o.g.attr("transform", `translate(${OP.cx + V * (now - o.T)},${o.y})`));
+    outs.forEach((o) => {               // grow out of the operator, then ride the output lane
+      const u = Math.min(1, (now - o.T) / GROW), e = u * u * (3 - 2 * u);
+      o.g.attr("transform", `translate(${OP.cx + V * (now - o.T)},${IN_Y + (o.y - IN_Y) * e}) scale(${0.28 + 0.72 * e})`).style("opacity", Math.min(1, (now - o.T) / 0.15));
+    });
     drops.forEach((d) => {
       const t = Math.max(0, now - d.at - 0.25);
       d.g.attr("transform", `translate(${OP.cx + V * Math.min(now - d.at, 0.25)},${IN_Y + 70 * t + 130 * t * t})`).style("opacity", Math.max(0, 1 - t / 0.8));
@@ -212,8 +233,11 @@
     sel.merge(en).attr("transform", (d) => `translate(${OP.cx + V * (now - d)},${AXIS_Y})`);
     // watermark
     if (wm != null) {
-      wmG.style("display", null).attr("transform", `translate(${OP.cx + V * (now - wm)},0)`);
-      wmG.select("text").text(`watermark ${t8(wm)}`);
+      // if the watermark is further back than the stage shows, pin its label to the right edge
+      const x = OP.cx + V * (now - wm), off = x > W - 40;
+      wmG.style("display", null).attr("transform", `translate(${off ? W - 78 : x},0)`);
+      wmG.select("line").style("display", off ? "none" : null);
+      wmG.select("text").style("text-anchor", off ? "end" : "middle").text(`watermark ${t8(wm)}${off ? " →" : ""}`);
     }
   }
 
