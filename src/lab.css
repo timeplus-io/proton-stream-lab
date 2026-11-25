@@ -3,7 +3,7 @@
 :root {
   --bg: #F7F6F6; --panel: #FFFFFF; --panel-2: #ECECED; --line: #DAD9DB;
   --fg: #120F1A; --muted: #514E58; --accent: #D53C97; --on-accent: #FFFFFF;
-  --wm: #97732D; --late: #B5B4B8; --ok: #164C3F; --danger: #D12D50; --on-key: #FFFFFF;
+  --wm: #97732D; --late: #8E8C94; --glow: rgba(213, 60, 151, 0.22); --ok: #1E7A63; --danger: #D12D50; --on-key: #FFFFFF;
   --k-a: #BF5815; --k-b: #077D95; --k-c: #8934D9; --k-d: #0B66BC;
   --font-display: "Inter", "Segoe UI", system-ui, sans-serif;
   --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
@@ -12,13 +12,13 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #110F14; --panel: #19171D; --panel-2: #231F2B; --line: #3A3741; --fg: #F7F6F6; --muted: #AEACB0;
-    --accent: #ED64A6; --on-accent: #110F14; --wm: #D9B25C; --late: #514E58; --ok: #4EC9B0; --danger: #FF6780;
+    --accent: #ED64A6; --on-accent: #110F14; --wm: #D9B25C; --late: #5C5964; --glow: rgba(237, 100, 166, 0.28); --ok: #4EC9B0; --danger: #FF6780;
     --k-a: #C8641F; --k-b: #0B8AA3; --k-c: #9147E0; --k-d: #2A7AD0; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #110F14; --panel: #19171D; --panel-2: #231F2B; --line: #3A3741; --fg: #F7F6F6; --muted: #AEACB0;
-  --accent: #ED64A6; --on-accent: #110F14; --wm: #D9B25C; --late: #514E58; --ok: #4EC9B0; --danger: #FF6780;
+  --accent: #ED64A6; --on-accent: #110F14; --wm: #D9B25C; --late: #5C5964; --glow: rgba(237, 100, 166, 0.28); --ok: #4EC9B0; --danger: #FF6780;
   --k-a: #C8641F; --k-b: #0B8AA3; --k-c: #9147E0; --k-d: #2A7AD0; color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -43,8 +43,16 @@ h1 { font: 700 clamp(26px, 4vw, 36px)/1.1 var(--font-display); margin: 0; text-w
 .btn.ghost { background: var(--panel); color: var(--fg); border: 1px solid var(--line); min-width: 0; }
 .spacer { flex: 1; }
 
-.stage { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow-x: auto; }
+.stage { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.stage-scroll { overflow-x: auto; }
 #stage { display: block; width: 100%; min-width: 760px; height: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; padding: 10px 18px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.legend:empty { display: none; }
+.lg-item { display: inline-flex; align-items: center; gap: 7px; color: var(--fg); }
+.lg-sw { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+.lg-sw.dropped { background: var(--late); }
+.lg-note { margin-left: auto; }
+.lg-note b { color: var(--fg); font-weight: 600; }
 .caption { display: grid; gap: 8px; }
 .sql { margin: 0; font: 14px/1.5 var(--font-mono); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; overflow-x: auto; white-space: pre; }
 .sql .kw { color: var(--accent); font-weight: 600; }
@@ -55,19 +63,37 @@ footer .here { font-weight: 700; color: var(--fg); }
 
 /* stage drawing */
 .sl .lane { fill: var(--panel-2); }
-.sl .zone-title { font: 700 13px var(--font-display); fill: var(--fg); letter-spacing: .02em; }
-.sl .zone-sub { font: 12px var(--font-mono); fill: var(--muted); }
-.sl .op { fill: var(--panel); stroke: var(--fg); stroke-width: 1.5; }
-.sl .op-title { font: 700 16px var(--font-display); fill: var(--fg); text-anchor: middle; }
-.sl .op-sub { font: 13px var(--font-mono); fill: var(--muted); text-anchor: middle; }
-.sl .clock { font: 600 14px var(--font-mono); fill: var(--fg); text-anchor: middle; font-variant-numeric: tabular-nums; }
-.sl .clock-lbl { font: 11px var(--font-mono); fill: var(--muted); text-anchor: middle; letter-spacing: .06em; text-transform: uppercase; }
+.sl .lane-line { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 2 8; stroke-linecap: round; }
+.sl .fade-stop-0 { stop-color: var(--panel); stop-opacity: 1; }
+.sl .fade-stop-1 { stop-color: var(--panel); stop-opacity: 0; }
+.sl .zone-title { font: 600 11px var(--font-mono); fill: var(--muted); letter-spacing: .09em; text-transform: uppercase; }
+.sl .zone-title tspan { fill: var(--fg); }
+.sl .op { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; transition: stroke .25s, filter .25s; }
+.sl .op.busy { stroke: var(--accent); filter: drop-shadow(0 0 10px var(--glow)); }
+.sl .op-title { font: 600 15px var(--font-display); fill: var(--fg); text-anchor: middle; }
+.sl .rule rect { fill: var(--panel-2); }
+.sl .rule text { font: 12px var(--font-mono); fill: var(--fg); text-anchor: middle; }
+.sl .clock { font: 600 15px var(--font-mono); fill: var(--fg); text-anchor: middle; font-variant-numeric: tabular-nums; }
+.sl .clock-lbl { font: 600 10.5px var(--font-mono); fill: var(--muted); text-anchor: middle; letter-spacing: .09em; text-transform: uppercase; }
 .sl .count { font: 12px var(--font-mono); fill: var(--muted); font-variant-numeric: tabular-nums; }
-.sl .card rect.body { stroke: rgba(0,0,0,.12); stroke-width: 1; }
-.sl .card text { fill: var(--on-key); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.sl .card .c-id { font-size: 12px; font-weight: 700; }
-.sl .card .c-val { font-size: 15px; font-weight: 700; }
-.sl .card .c-time { font-size: 11px; opacity: .92; }
+.sl .count tspan { fill: var(--fg); font-weight: 600; }
+.sl .card { filter: drop-shadow(0 2px 3px rgba(18, 15, 26, 0.22)); }
+.sl .card text { fill: var(--on-key); font-variant-numeric: tabular-nums; }
+.sl .card .c-id { font: 600 11.5px var(--font-mono); opacity: .9; }
+.sl .card .c-chip { fill: rgba(255, 255, 255, 0.22); }
+.sl .card .c-key { font: 600 11px var(--font-body); }
+.sl .card .c-val { font: 700 19px var(--font-body); letter-spacing: -0.01em; }
+.sl .card .c-time { font: 11px var(--font-mono); opacity: .9; }
+.sl .card .c-icon circle, .sl .card .c-icon path { fill: none; stroke: var(--on-key); stroke-width: 1.2; stroke-linecap: round; opacity: .9; }
 .sl .card.dropped rect.body { fill: var(--late) !important; }
-.sl .card .c-flash { fill: none; stroke: var(--fg); stroke-width: 2.5; opacity: 0; }
-.sl .arrow { stroke: var(--line); stroke-width: 2; fill: none; }
+.sl .card .c-flash { fill: none; stroke: var(--accent); stroke-width: 2.5; opacity: 0; }
+.sl .card .c-badge circle { fill: var(--panel); stroke-width: 1.5; }
+.sl .card .c-badge path { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sl .card .c-badge.ok circle, .sl .card .c-badge.ok path { stroke: var(--ok); }
+.sl .card .c-badge.no circle, .sl .card .c-badge.no path { stroke: var(--danger); }
+.sl .axis-line { stroke: var(--line); stroke-width: 1; }
+.sl .axis .tk line { stroke: var(--muted); stroke-width: 1; }
+.sl .axis .tk text { font: 10.5px var(--font-mono); fill: var(--muted); text-anchor: middle; font-variant-numeric: tabular-nums; }
+.sl .now-mark { fill: var(--accent); }
+.sl .now-line { stroke: var(--accent); stroke-width: 1.5; }
+.note code { font: 13px var(--font-mono); background: var(--panel-2); padding: 1px 5px; border-radius: 4px; color: var(--fg); }

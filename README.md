@@ -18,6 +18,8 @@ Hosted previews (private claude.ai artifacts): [01](https://claude.ai/artifact/5
 - Keep it simple: one stage, input on the left, the operator in the middle, output on the right.
 - The stream runs until the viewer presses Pause.
 - All data sits inside the data card: id, key, value, event time. Output cards use the same format as input cards.
+- Position is time: a card sits on the scrolling time axis at its own timestamp and reaches the operator when the clock shows that time. Arrivals are uneven (bursts and gaps), never evenly spaced.
+- A legend under the stage explains what color means (here: the device).
 - Timeplus styling: Inter, Timeplus pink accent, purple-tinted greys.
 
 Episode 01 uses the simple runtime (`src/lab.js`, `src/lab.css`, `src/lab-shell.html`). Episodes 02 and 03 still use the first, chapter-based runtime (`src/core.*`, `src/shell.html`) and will be moved over once 01 is agreed.
