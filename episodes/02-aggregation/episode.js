@@ -1,6 +1,6 @@
 /* Episode 2: streaming aggregation. Same stage as episode 1, but the operator now keeps state.
    Input cards are routed to their key's row and absorbed into a hollow state card.
-   The output is one stream on one lane: rows emitted together leave as a single block. */
+   The output is one stream: one card per record, all in one line. */
 (() => {
   const W = 1200, H = 404, V = 96;
   const { w: CW } = Lab.CARD;
@@ -11,6 +11,8 @@
   const MIN_GAP = (CW + 14) / V;
   const AHEAD = (OP.cx + CW) / V;
   const ROUTE = 0.9;      // seconds before arrival when a card turns toward its key's row
+  const SLOT = (CW + 8) / V;   // output records leave one card apart
+  const PERIOD = 5;       // EMIT PERIODIC interval in seconds
   const GROW = 1.0;       // seconds an output takes to grow out of the operator
   const WIN = 5;          // window size in seconds
   const t8 = (t) => Lab.hms(t).slice(0, 8);
@@ -19,18 +21,18 @@
   const modes = [
     {
       id: "global", label: "Global", agg: "global", emit: "periodic", rule: "count() by device",
-      sql: "SELECT device, count() FROM sensors GROUP BY device EMIT PERIODIC 2s",
-      note: "Now the operator has to <b>remember</b>. Each event joins its device's row and bumps the count kept in the hollow card: that is the state. Every 2 seconds the operator emits <b>one block</b> with the current count of <i>every</i> device, changed or not. This is the default for an aggregation without a window.",
+      sql: "SELECT device, count() FROM sensors GROUP BY device EMIT PERIODIC 5s",
+      note: "Now the operator has to <b>remember</b>. Each event joins its device's row and bumps the count kept in the hollow card: that is the state. Every 5 seconds the operator emits the current count of <i>every</i> device, changed or not: one record per device, one after another on the same output stream. Without <code>EMIT</code>, an aggregation with no window does this every 2 seconds.",
     },
     {
       id: "update", label: "On update", agg: "global", emit: "update", rule: "count() by device",
       sql: "SELECT device, count() FROM sensors GROUP BY device EMIT ON UPDATE",
-      note: "Same state, different trigger. A result is emitted as soon as an event changes it, and only for the device that changed: one row out for each event in. Nothing is repeated on a timer.",
+      note: "Same state, different trigger. A result is emitted as soon as an event changes it, and only for the device that changed: one row out for each event in. There is no timer.",
     },
     {
       id: "tumble", label: "Tumble window", agg: "tumble", delay: 0, rule: "count() by device, 5s windows",
       sql: TUMBLE,
-      note: "Time is cut into 5-second windows (the thin vertical lines). State is kept per window. The <b>watermark</b> (the gold dashed line) marks how far event time has got: it moves to a window's start when the first event of that window arrives. That closes the window before it: its counts are emitted once, as one block, and its state is freed.",
+      note: "Time is cut into 5-second windows (the thin vertical lines). State is kept per window. The <b>watermark</b> (the gold dashed line) marks how far event time has got: it moves to a window's start when the first event of that window arrives. That closes the window before it: its counts are emitted once, one record per device, and its state is freed.",
     },
     {
       id: "late", label: "Late events", agg: "tumble", delay: 0, disorder: true, rule: "count() by device, 5s windows",
@@ -44,7 +46,7 @@
     },
   ];
 
-  let L, mode, rnd, seq, nextAt, nextTick, gen, wm, lastArrive;
+  let L, mode, rnd, seq, nextAt, nextTick, gen, wm, lastArrive, outFree;
   let inputs, outs, drops, state, clockTxt, opBox, wmG;
   const windowed = () => mode.agg === "tumble";
 
@@ -70,7 +72,7 @@
   function init(svg, m) {
     mode = m; rnd = Lab.rng(m.disorder ? 180 : 42); seq = 0;
     inputs = []; outs = []; drops = []; state = new Map();
-    gen = { maxEt: -Infinity, wm: null }; wm = null; lastArrive = -9;
+    gen = { maxEt: -Infinity, wm: null }; wm = null; lastArrive = -9; outFree = -Infinity;
     svg.attr("viewBox", `0 0 ${W} ${H}`);
     L = {
       bg: svg.append("g"), axis: svg.append("g").attr("class", "axis"), box: svg.append("g"), wm: svg.append("g"),
@@ -98,7 +100,7 @@
     wmG.append("text").attr("y", AXIS_Y + 36);
 
     // warm up, so the first frame already shows state and output
-    nextAt = -16; nextTick = -16;
+    nextAt = -16; nextTick = -15;
     for (let t = -16; t < 0; t += 0.1) step(t);
     step(0); render(0);
   }
@@ -115,19 +117,15 @@
     if (windowed()) Lab.setState(s.g, [...s.wins.keys()].sort((a, b) => a - b).map((ws) => ({ l: t8(ws), r: s.wins.get(ws) })));
     else Lab.setState(s.g, [{ l: "count", r: s.count }]);
   }
-  /* One output stream. A single row leaves as a card; rows emitted together leave as one block.
-     batches = [{ rows: [{ key, count }], timeText }], all emitted at processing time T. */
-  function emit(batches, T) {
-    const GAP = 8;
-    const hs = batches.map((b) => (b.rows.length > 1 || b.block ? Lab.blockH(b.rows.length) : Lab.CARD.h));
-    let y = IN_Y - (d3.sum(hs) + GAP * (hs.length - 1)) / 2;
-    batches.forEach((b, i) => {
-      const one = b.rows[0];
-      const g = b.rows.length > 1 || b.block
-        ? Lab.block(L.out, b.rows.map((r) => ({ key: r.key, l: `device ${r.key}`, r: r.count })), b.timeText)
-        : Lab.card(L.out, { key: one.key, title: `device ${one.key}`, valText: `count ${one.count}`, timeText: b.timeText });
-      outs.push({ g, T, y: y + hs[i] / 2 });
-      y += hs[i] + GAP;
+  /* One output stream: one card per record, all in one line, like the rows of the SQL result.
+     Records emitted at the same moment leave the operator one after another, because the line is one card wide.
+     rows = [{ key, count, timeText }], all emitted at processing time T. */
+  function emit(rows, T) {
+    rows.forEach((r) => {
+      const at = Math.max(T, outFree);
+      outFree = at + SLOT;
+      const g = Lab.card(L.out, { key: r.key, title: `device ${r.key}`, valText: `count ${r.count}`, timeText: r.timeText }).style("display", "none");
+      outs.push({ g, T: at });
     });
   }
 
@@ -145,7 +143,7 @@
     if (!windowed()) {
       s.count++;
       showState(s); Lab.flash(s.g);
-      if (mode.emit === "update") emit([{ rows: [{ key: ev.key, count: s.count }], timeText: t8(ev.at) }], ev.at);
+      if (mode.emit === "update") emit([{ key: ev.key, count: s.count, timeText: t8(ev.at) }], ev.at);
       return;
     }
     const ws = Math.floor(ev.et / WIN) * WIN;
@@ -156,7 +154,7 @@
 
   /* A window is final once its end is at or before the watermark: emit it once, then free its state. */
   function closeWindows(T) {
-    const closed = new Map();   // window start -> rows, one block per window
+    const closed = new Map();   // window start -> rows
     KEYS.forEach((key) => {
       const s = state.get(key);
       if (!s) return;
@@ -168,9 +166,9 @@
       });
       if (s.wins.size) showState(s); else { s.g.remove(); state.delete(key); }
     });
-    const batches = [...closed.keys()].sort((a, b) => a - b)
-      .map((ws) => ({ rows: closed.get(ws), block: true, timeText: `${t8(ws)}–:${t8(ws + WIN).slice(6)}` }));
-    if (batches.length) emit(batches, T);
+    const rows = [...closed.keys()].sort((a, b) => a - b)
+      .flatMap((ws) => closed.get(ws).map((r) => ({ ...r, timeText: `${t8(ws)}–:${t8(ws + WIN).slice(6)}` })));
+    if (rows.length) emit(rows, T);
   }
 
   function step(now) {
@@ -184,9 +182,9 @@
       const tt = mode.emit === "periodic" && nextTick <= now ? nextTick : Infinity;
       if (te === Infinity && tt === Infinity) break;
       if (tt <= te) {
-        const rows = KEYS.filter((k) => state.has(k)).map((k) => ({ key: k, count: state.get(k).count }));
-        if (rows.length) emit([{ rows, block: true, timeText: t8(tt) }], tt);
-        nextTick += 2;
+        const rows = KEYS.filter((k) => state.has(k)).map((k) => ({ key: k, count: state.get(k).count, timeText: t8(tt) }));
+        if (rows.length) emit(rows, tt);
+        nextTick += PERIOD;
       } else arrive(inputs.shift());
     }
     outs = outs.filter((o) => { const gone = OP.cx + V * (now - o.T) > W + CW; if (gone) o.g.remove(); return !gone; });
@@ -211,7 +209,7 @@
     });
     outs.forEach((o) => {               // grow out of the operator, then ride the output lane
       const u = Math.min(1, (now - o.T) / GROW), e = u * u * (3 - 2 * u);
-      o.g.attr("transform", `translate(${OP.cx + V * (now - o.T)},${IN_Y + (o.y - IN_Y) * e}) scale(${0.28 + 0.72 * e})`).style("opacity", Math.min(1, (now - o.T) / 0.15));
+      o.g.attr("transform", `translate(${OP.cx + V * (now - o.T)},${IN_Y}) scale(${0.28 + 0.72 * e})`).style("display", now < o.T ? "none" : null).style("opacity", Math.min(1, (now - o.T) / 0.15));
     });
     drops.forEach((d) => {
       const t = Math.max(0, now - d.at - 0.25);
@@ -233,11 +231,11 @@
     sel.merge(en).attr("transform", (d) => `translate(${OP.cx + V * (now - d)},${AXIS_Y})`);
     // watermark
     if (wm != null) {
-      // if the watermark is further back than the stage shows, pin its label to the right edge
+      // the label stays readable near the right edge; past the edge the line is gone and the label points to it
       const x = OP.cx + V * (now - wm), off = x > W - 40;
-      wmG.style("display", null).attr("transform", `translate(${off ? W - 78 : x},0)`);
-      wmG.select("line").style("display", off ? "none" : null);
-      wmG.select("text").style("text-anchor", off ? "end" : "middle").text(`watermark ${t8(wm)}${off ? " →" : ""}`);
+      wmG.style("display", null);
+      wmG.select("line").attr("x1", x).attr("x2", x).style("display", off ? "none" : null);
+      wmG.select("text").attr("x", Math.min(x, W - 130)).text(`watermark ${t8(wm)}${off ? " →" : ""}`);
     }
   }
 

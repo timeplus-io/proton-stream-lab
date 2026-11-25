@@ -70,11 +70,6 @@ footer .here { font-weight: 700; color: var(--fg); }
 .sl .card .c-val { font: 700 19px var(--font-body); letter-spacing: -0.01em; }
 .sl .card .c-time { font: 11px var(--font-mono); opacity: .92; }
 .sl .card.dropped rect.body { fill: var(--late) !important; }
-.sl .block .b-l { font: 600 11px var(--font-body); opacity: .92; }
-.sl .block .b-r { font: 700 15px var(--font-body); }
-.sl .block .b-sep { stroke: var(--bg); stroke-width: 1; }
-.sl .block .b-foot { fill: var(--fg); }
-.sl .card.block .b-time { font: 11px var(--font-mono); fill: var(--bg); }
 .sl .card .c-flash { fill: none; stroke: var(--accent); stroke-width: 2.5; opacity: 0; }
 .sl .axis-line { stroke: var(--line); stroke-width: 1; }
 .sl .axis .tk line { stroke: var(--line); stroke-width: 1; }
