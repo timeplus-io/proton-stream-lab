@@ -41,13 +41,15 @@ def main():
                 items.append(f'<li class="later"><span>{label}</span></li>')
         n = len(eps)
         if kind == "lab":
-            items = []
-            for o in eps:
-                built = (ROOT / "episodes" / o["slug"] / "episode.js").exists()
+            # lab pages only link to the neighbouring episodes
+            def nav(o, arrow_left):
+                if o is None or not (ROOT / "episodes" / o["slug"] / "episode.js").exists():
+                    return "<span></span>"
                 href = links.get(o["slug"], f"{o['slug']}.html")
                 name = f'{o["num"]:02d} {html.escape(o["name"])}'
-                items.append(f'<span class="here">{name}</span>' if o is ep else (f'<a href="{href}">{name}</a>' if built else f'<span>{name}</span>'))
-            items += [f'<span>{n + i + 1:02d} {x}</span>' for i, x in enumerate(LATER)]
+                return f'<a href="{href}">{"← " + name if arrow_left else name + " →"}</a>'
+            i = eps.index(ep)
+            items = [nav(eps[i - 1] if i > 0 else None, True), nav(eps[i + 1] if i + 1 < len(eps) else None, False)]
         else:
           for i, name in enumerate(LATER):
             items.append(f'<li class="later"><span><span class="num">{n + i + 1:02d}</span>{name}</span></li>')

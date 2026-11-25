@@ -16,6 +16,7 @@ Hosted previews (private claude.ai artifacts): [01](https://claude.ai/artifact/5
 ## Design rules (agreed on episode 01)
 
 - Keep it simple: one stage, input on the left, the operator in the middle, output on the right.
+- The canvas holds only three things: data cards, the operator (a frame with its rule), and time (axis, now pointer, clock). No counters, zone labels, badges or icons. Anything said by the tabs, the SQL or the caption is not repeated on the canvas.
 - The stream runs until the viewer presses Pause.
 - All data sits inside the data card: id, key, value, event time. Output cards use the same format as input cards.
 - Position is time: a card sits on the scrolling time axis at its own timestamp and reaches the operator when the clock shows that time. Arrivals are uneven (bursts and gaps), never evenly spaced.

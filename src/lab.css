@@ -46,54 +46,33 @@ h1 { font: 700 clamp(26px, 4vw, 36px)/1.1 var(--font-display); margin: 0; text-w
 .stage { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
 .stage-scroll { overflow-x: auto; }
 #stage { display: block; width: 100%; min-width: 760px; height: auto; }
-.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; padding: 10px 18px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; font-size: 13px; color: var(--muted); }
 .legend:empty { display: none; }
-.lg-item { display: inline-flex; align-items: center; gap: 7px; color: var(--fg); }
+.lg-item { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); }
 .lg-sw { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
-.lg-sw.dropped { background: var(--late); }
-.lg-note { margin-left: auto; }
-.lg-note b { color: var(--fg); font-weight: 600; }
 .caption { display: grid; gap: 8px; }
 .sql { margin: 0; font: 14px/1.5 var(--font-mono); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; overflow-x: auto; white-space: pre; }
 .sql .kw { color: var(--accent); font-weight: 600; }
 .note { margin: 0; color: var(--muted); max-width: 80ch; }
-footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+footer { color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; gap: 16px; }
 footer a { color: var(--fg); }
 footer .here { font-weight: 700; color: var(--fg); }
 
 /* stage drawing */
-.sl .lane { fill: var(--panel-2); }
-.sl .lane-line { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 2 8; stroke-linecap: round; }
 .sl .fade-stop-0 { stop-color: var(--panel); stop-opacity: 1; }
 .sl .fade-stop-1 { stop-color: var(--panel); stop-opacity: 0; }
-.sl .zone-title { font: 600 11px var(--font-mono); fill: var(--muted); letter-spacing: .09em; text-transform: uppercase; }
-.sl .zone-title tspan { fill: var(--fg); }
-.sl .op { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; transition: stroke .25s, filter .25s; }
-.sl .op.busy { stroke: var(--accent); filter: drop-shadow(0 0 10px var(--glow)); }
-.sl .op-title { font: 600 15px var(--font-display); fill: var(--fg); text-anchor: middle; }
-.sl .rule rect { fill: var(--panel-2); }
-.sl .rule text { font: 12px var(--font-mono); fill: var(--fg); text-anchor: middle; }
-.sl .clock { font: 600 15px var(--font-mono); fill: var(--fg); text-anchor: middle; font-variant-numeric: tabular-nums; }
-.sl .clock-lbl { font: 600 10.5px var(--font-mono); fill: var(--muted); text-anchor: middle; letter-spacing: .09em; text-transform: uppercase; }
-.sl .count { font: 12px var(--font-mono); fill: var(--muted); font-variant-numeric: tabular-nums; }
-.sl .count tspan { fill: var(--fg); font-weight: 600; }
-.sl .card { filter: drop-shadow(0 2px 3px rgba(18, 15, 26, 0.22)); }
+.sl .op { fill: var(--panel-2); stroke: var(--line); stroke-width: 1.5; transition: stroke .25s; }
+.sl .op.busy { stroke: var(--accent); }
+.sl .op-rule { font: 600 13px var(--font-mono); fill: var(--fg); text-anchor: middle; }
+.sl .clock { font: 600 15px var(--font-mono); fill: var(--accent); text-anchor: middle; font-variant-numeric: tabular-nums; }
 .sl .card text { fill: var(--on-key); font-variant-numeric: tabular-nums; }
-.sl .card .c-id { font: 600 11.5px var(--font-mono); opacity: .9; }
-.sl .card .c-chip { fill: rgba(255, 255, 255, 0.22); }
-.sl .card .c-key { font: 600 11px var(--font-body); }
+.sl .card .c-id { font: 600 11px var(--font-body); opacity: .92; }
 .sl .card .c-val { font: 700 19px var(--font-body); letter-spacing: -0.01em; }
-.sl .card .c-time { font: 11px var(--font-mono); opacity: .9; }
-.sl .card .c-icon circle, .sl .card .c-icon path { fill: none; stroke: var(--on-key); stroke-width: 1.2; stroke-linecap: round; opacity: .9; }
+.sl .card .c-time { font: 11px var(--font-mono); opacity: .92; }
 .sl .card.dropped rect.body { fill: var(--late) !important; }
 .sl .card .c-flash { fill: none; stroke: var(--accent); stroke-width: 2.5; opacity: 0; }
-.sl .card .c-badge circle { fill: var(--panel); stroke-width: 1.5; }
-.sl .card .c-badge path { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.sl .card .c-badge.ok circle, .sl .card .c-badge.ok path { stroke: var(--ok); }
-.sl .card .c-badge.no circle, .sl .card .c-badge.no path { stroke: var(--danger); }
 .sl .axis-line { stroke: var(--line); stroke-width: 1; }
-.sl .axis .tk line { stroke: var(--muted); stroke-width: 1; }
+.sl .axis .tk line { stroke: var(--line); stroke-width: 1; }
 .sl .axis .tk text { font: 10.5px var(--font-mono); fill: var(--muted); text-anchor: middle; font-variant-numeric: tabular-nums; }
 .sl .now-mark { fill: var(--accent); }
-.sl .now-line { stroke: var(--accent); stroke-width: 1.5; }
 .note code { font: 13px var(--font-mono); background: var(--panel-2); padding: 1px 5px; border-radius: 4px; color: var(--fg); }

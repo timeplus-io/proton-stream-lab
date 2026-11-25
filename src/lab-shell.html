@@ -11,21 +11,15 @@
   <header>
     <div class="eyebrow">Proton Stream Lab · {{EP_NUM}}</div>
     <h1>{{H1}}</h1>
-    <p class="lede">{{LEDE}}</p>
   </header>
   <div class="bar">
     <div class="seg" id="modes" role="group" aria-label="Operation"></div>
+    <div class="legend" id="legend"></div>
     <span class="spacer"></span>
     <button class="btn" id="play" type="button">Pause</button>
-    <div class="seg" id="speed" role="group" aria-label="Speed">
-      <button type="button" data-s="0.5" aria-pressed="false">½×</button>
-      <button type="button" data-s="1" aria-pressed="true">1×</button>
-      <button type="button" data-s="2" aria-pressed="false">2×</button>
-    </div>
   </div>
   <div class="stage">
-    <div class="stage-scroll"><svg id="stage" class="sl" viewBox="0 0 1200 350" role="img" aria-label="Animated stream"></svg></div>
-    <div class="legend" id="legend"></div>
+    <div class="stage-scroll"><svg id="stage" class="sl" viewBox="0 0 1200 262" role="img" aria-label="Animated stream"></svg></div>
   </div>
   <div class="caption">
     <pre class="sql" id="sql"></pre>
