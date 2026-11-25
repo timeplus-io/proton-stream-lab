@@ -13,6 +13,15 @@ Planned, following the Proton KT order: changelog, backfill, S3 storage, hybrid 
 
 Hosted previews (private claude.ai artifacts): [01](https://claude.ai/artifact/5NnepDP1ZoGJvyrUWehrin) · [02](https://claude.ai/artifact/JMaGU5PCMeF28HHKdS6vQL) · [03](https://claude.ai/artifact/H23UQb72c9wxyJ7e4prsfx). `links.artifacts.json` maps episodes to those URLs for `build.py --fragment --links links.artifacts.json`.
 
+## Design rules (agreed on episode 01)
+
+- Keep it simple: one stage, input on the left, the operator in the middle, output on the right.
+- The stream runs until the viewer presses Pause.
+- All data sits inside the data card: id, key, value, event time. Output cards use the same format as input cards.
+- Timeplus styling: Inter, Timeplus pink accent, purple-tinted greys.
+
+Episode 01 uses the simple runtime (`src/lab.js`, `src/lab.css`, `src/lab-shell.html`). Episodes 02 and 03 still use the first, chapter-based runtime (`src/core.*`, `src/shell.html`) and will be moved over once 01 is agreed.
+
 ## Run it
 
 No build tools are needed to view a page: open `dist/<episode>.html` in a browser (it loads D3 and fonts from public CDNs).

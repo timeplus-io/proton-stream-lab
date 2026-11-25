@@ -15,15 +15,18 @@ def main():
     if "--links" in sys.argv:
         links = json.loads((ROOT / sys.argv[sys.argv.index("--links") + 1]).read_text())
     eps = json.loads((ROOT / "episodes.json").read_text())
-    shell = (ROOT / "src/shell.html").read_text()
-    css = (ROOT / "src/core.css").read_text()
-    core = (ROOT / "src/core.js").read_text()
+    shells = {
+        "classic": ((ROOT / "src/shell.html").read_text(), (ROOT / "src/core.css").read_text(), (ROOT / "src/core.js").read_text()),
+        "lab": ((ROOT / "src/lab-shell.html").read_text(), (ROOT / "src/lab.css").read_text(), (ROOT / "src/lab.js").read_text()),
+    }
     fragment = "--fragment" in sys.argv
     out = ROOT / ("build/artifact" if fragment else "dist"); out.mkdir(parents=True, exist_ok=True)
     for ep in eps:
         js_path = ROOT / "episodes" / ep["slug"] / "episode.js"
         if not js_path.exists():
             continue
+        kind = ep.get("shell", "classic")
+        shell, css, core = shells[kind]
         items = []
         for o in eps:
             built = (ROOT / "episodes" / o["slug"] / "episode.js").exists()
@@ -37,10 +40,19 @@ def main():
             else:
                 items.append(f'<li class="later"><span>{label}</span></li>')
         n = len(eps)
-        for i, name in enumerate(LATER):
+        if kind == "lab":
+            items = []
+            for o in eps:
+                built = (ROOT / "episodes" / o["slug"] / "episode.js").exists()
+                href = links.get(o["slug"], f"{o['slug']}.html")
+                name = f'{o["num"]:02d} {html.escape(o["name"])}'
+                items.append(f'<span class="here">{name}</span>' if o is ep else (f'<a href="{href}">{name}</a>' if built else f'<span>{name}</span>'))
+            items += [f'<span>{n + i + 1:02d} {x}</span>' for i, x in enumerate(LATER)]
+        else:
+          for i, name in enumerate(LATER):
             items.append(f'<li class="later"><span><span class="num">{n + i + 1:02d}</span>{name}</span></li>')
         page = (shell.replace("{{TITLE}}", ep["title"]).replace("{{DESCRIPTION}}", ep["description"])
-                .replace("{{EP_NUM}}", str(ep["num"])).replace("{{H1}}", ep["h1"]).replace("{{LEDE}}", ep["lede"])
+                .replace("{{EP_NUM}}", f'{ep["num"]:02d}' if kind == "lab" else str(ep["num"])).replace("{{H1}}", ep["h1"]).replace("{{LEDE}}", ep["lede"])
                 .replace("{{SERIES}}", "".join(items)).replace("{{CORE_CSS}}", css)
                 .replace("{{CORE_JS}}", core).replace("{{EP_JS}}", js_path.read_text()))
         if not fragment:

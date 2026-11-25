@@ -1,0 +1,73 @@
+/* Proton Stream Lab, simple layout: one stage, input left, operator middle, output right. */
+/* Timeplus look: Inter, purple-tinted greys, Timeplus pink as the accent (from timeplus-io/docs custom.css). */
+:root {
+  --bg: #F7F6F6; --panel: #FFFFFF; --panel-2: #ECECED; --line: #DAD9DB;
+  --fg: #120F1A; --muted: #514E58; --accent: #D53C97; --on-accent: #FFFFFF;
+  --wm: #97732D; --late: #B5B4B8; --ok: #164C3F; --danger: #D12D50; --on-key: #FFFFFF;
+  --k-a: #BF5815; --k-b: #077D95; --k-c: #8934D9; --k-d: #0B66BC;
+  --font-display: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #110F14; --panel: #19171D; --panel-2: #231F2B; --line: #3A3741; --fg: #F7F6F6; --muted: #AEACB0;
+    --accent: #ED64A6; --on-accent: #110F14; --wm: #D9B25C; --late: #514E58; --ok: #4EC9B0; --danger: #FF6780;
+    --k-a: #C8641F; --k-b: #0B8AA3; --k-c: #9147E0; --k-d: #2A7AD0; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #110F14; --panel: #19171D; --panel-2: #231F2B; --line: #3A3741; --fg: #F7F6F6; --muted: #AEACB0;
+  --accent: #ED64A6; --on-accent: #110F14; --wm: #D9B25C; --late: #514E58; --ok: #4EC9B0; --danger: #FF6780;
+  --k-a: #C8641F; --k-b: #0B8AA3; --k-c: #9147E0; --k-d: #2A7AD0; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.page {
+  max-width: 1240px; margin: 0 auto; padding-block: 28px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 18px;
+}
+header { display: grid; gap: 6px; }
+.eyebrow { font: 600 12px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 clamp(26px, 4vw, 36px)/1.1 var(--font-display); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+.lede { margin: 0; color: var(--muted); max-width: 70ch; }
+
+.bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); }
+.seg button { all: unset; cursor: pointer; font: 600 14px var(--font-body); padding: 8px 14px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.seg button:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn { font: 600 14px var(--font-body); color: var(--on-accent); background: var(--accent); border: 0; border-radius: 10px; padding: 8px 16px; cursor: pointer; min-width: 90px; }
+.btn.ghost { background: var(--panel); color: var(--fg); border: 1px solid var(--line); min-width: 0; }
+.spacer { flex: 1; }
+
+.stage { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow-x: auto; }
+#stage { display: block; width: 100%; min-width: 760px; height: auto; }
+.caption { display: grid; gap: 8px; }
+.sql { margin: 0; font: 14px/1.5 var(--font-mono); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; overflow-x: auto; white-space: pre; }
+.sql .kw { color: var(--accent); font-weight: 600; }
+.note { margin: 0; color: var(--muted); max-width: 80ch; }
+footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+footer a { color: var(--fg); }
+footer .here { font-weight: 700; color: var(--fg); }
+
+/* stage drawing */
+.sl .lane { fill: var(--panel-2); }
+.sl .zone-title { font: 700 13px var(--font-display); fill: var(--fg); letter-spacing: .02em; }
+.sl .zone-sub { font: 12px var(--font-mono); fill: var(--muted); }
+.sl .op { fill: var(--panel); stroke: var(--fg); stroke-width: 1.5; }
+.sl .op-title { font: 700 16px var(--font-display); fill: var(--fg); text-anchor: middle; }
+.sl .op-sub { font: 13px var(--font-mono); fill: var(--muted); text-anchor: middle; }
+.sl .clock { font: 600 14px var(--font-mono); fill: var(--fg); text-anchor: middle; font-variant-numeric: tabular-nums; }
+.sl .clock-lbl { font: 11px var(--font-mono); fill: var(--muted); text-anchor: middle; letter-spacing: .06em; text-transform: uppercase; }
+.sl .count { font: 12px var(--font-mono); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.sl .card rect.body { stroke: rgba(0,0,0,.12); stroke-width: 1; }
+.sl .card text { fill: var(--on-key); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.sl .card .c-id { font-size: 12px; font-weight: 700; }
+.sl .card .c-val { font-size: 15px; font-weight: 700; }
+.sl .card .c-time { font-size: 11px; opacity: .92; }
+.sl .card.dropped rect.body { fill: var(--late) !important; }
+.sl .card .c-flash { fill: none; stroke: var(--fg); stroke-width: 2.5; opacity: 0; }
+.sl .arrow { stroke: var(--line); stroke-width: 2; fill: none; }
