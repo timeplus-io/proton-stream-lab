@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stateless Stream Transform</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Animated explainer of how Proton streams events through stateless filter and expression operators.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Proton Stream Lab, shared stylesheet.
+   Layout: a lab bench. Chapter rail on the left, the stage (SVG) on the right,
+   explanation and SQL under the stage. Same tokens in every episode. */
+:root {
+  --bg: #F3F5F9;
+  --panel: #FFFFFF;
+  --panel-2: #E9EEF5;
+  --line: #CDD5E1;
+  --fg: #142033;
+  --muted: #5A677A;
+  --accent: #2F5BEA;      /* UI accent and checkpoint barrier */
+  --on-accent: #FFFFFF;
+  --wm: #B7791F;          /* watermark */
+  --wm-soft: rgba(183, 121, 31, 0.10);
+  --late: #A3ACB9;
+  --danger: #D03A3A;
+  --ok: #1F8A5B;
+  --on-key: #FFFFFF;
+  --k-a: #E0533D;         /* key A */
+  --k-b: #158F82;         /* key B */
+  --k-c: #7556D1;         /* key C */
+  --k-d: #4C7D22;         /* key D */
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D121A; --panel: #141B26; --panel-2: #1B2431; --line: #2B3749;
+    --fg: #E4E9F1; --muted: #93A0B3; --accent: #7D97FF; --on-accent: #0D121A;
+    --wm: #E3AE4C; --wm-soft: rgba(227, 174, 76, 0.12); --late: #5E6979;
+    --danger: #F06262; --ok: #4CC38A; --on-key: #FFFFFF;
+    --k-a: #E8634B; --k-b: #1FA595; --k-c: #8C6FE6; --k-d: #67A033;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0D121A; --panel: #141B26; --panel-2: #1B2431; --line: #2B3749;
+  --fg: #E4E9F1; --muted: #93A0B3; --accent: #7D97FF; --on-accent: #0D121A;
+  --wm: #E3AE4C; --wm-soft: rgba(227, 174, 76, 0.12); --late: #5E6979;
+  --danger: #F06262; --ok: #4CC38A; --on-key: #FFFFFF;
+  --k-a: #E8634B; --k-b: #1FA595; --k-c: #8C6FE6; --k-d: #67A033;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+.page {
+  max-width: 1320px; margin: 0 auto;
+  padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px;
+}
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+code, pre, .mono { font-family: var(--font-mono); }
+
+/* Header */
+.hero { display: grid; gap: 10px; max-width: 900px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.eyebrow b { color: var(--accent); font-weight: 600; }
+.hero h1 { font-size: clamp(28px, 4vw, 42px); line-height: 1.1; }
+.lede { margin: 0; color: var(--muted); max-width: 68ch; font-size: 16px; }
+
+/* Lab layout */
+.lab { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 20px; align-items: start; }
+.chapters { display: grid; gap: 4px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+.chapters .rail-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 0 10px 6px; }
+.chap {
+  all: unset; cursor: pointer; display: grid; grid-template-columns: 26px 1fr; gap: 8px; align-items: baseline;
+  padding: 8px 10px; border-radius: 8px; color: var(--fg); font-size: 14px; line-height: 1.3;
+}
+.chap .n { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.chap small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.chap:hover { background: var(--panel-2); }
+.chap:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chap[aria-current="true"] { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+.chap[aria-current="true"] .n { color: var(--accent); font-weight: 700; }
+
+.stage-col { display: grid; gap: 16px; min-width: 0; }
+.stage-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.stage-scroll { overflow-x: auto; }
+#stage { display: block; width: 100%; min-width: 820px; height: auto; font-family: var(--font-body); }
+
+/* Controls */
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--panel-2); }
+.btn {
+  font: 600 13px var(--font-body); color: var(--fg); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 12px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center;
+}
+.btn:hover { border-color: var(--muted); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); min-width: 88px; justify-content: center; }
+.btn[disabled] { opacity: .45; cursor: default; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.seg button { all: unset; cursor: pointer; font: 600 12px var(--font-mono); padding: 7px 9px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ctl-label { font-size: 12px; color: var(--muted); }
+.spacer { flex: 1; }
+.clock { font: 600 13px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--fg); }
+.clock span { color: var(--muted); font-weight: 400; }
+.status { font-size: 12px; color: var(--muted); }
+
+/* Explanation */
+.explain { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; min-width: 0; }
+.ch-text h2 { font-size: 22px; margin-bottom: 4px; }
+.ch-text .sub { font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.ch-text p { margin: 0 0 12px; max-width: 66ch; }
+.ch-text h3, .side h3 { font-size: 12px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 14px 0 6px; font-weight: 600; }
+.ch-text ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.side { display: grid; gap: 12px; align-content: start; }
+.side h3:first-child { margin-top: 0; }
+pre.sql { margin: 0; padding: 12px 14px; background: var(--panel-2); border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.5; color: var(--fg); }
+pre.sql .kw { color: var(--accent); font-weight: 600; }
+pre.sql .cm { color: var(--muted); font-style: italic; }
+.refs { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 13px; }
+.refs code { font-size: 12px; background: var(--panel-2); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+.log { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font: 12.5px/1.45 var(--font-mono); max-height: 168px; overflow-y: auto; }
+.log li { display: grid; grid-template-columns: 62px 1fr; gap: 8px; color: var(--fg); }
+.log li time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.log li:not(:first-child) { opacity: .62; }
+.log li.empty { display: block; color: var(--muted); opacity: 1; }
+.playground { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 12px 14px; background: var(--panel-2); border-radius: 8px; margin-top: 4px; }
+.playground label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+.playground select { font: 13px var(--font-body); color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+
+/* Legend */
+.legend { display: grid; gap: 12px; }
+.legend h2 { font-size: 18px; }
+.legend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.legend-item { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+.legend-item svg { width: 64px; height: 44px; }
+.legend-item b { display: block; font-size: 13px; }
+.legend-item span { color: var(--muted); }
+
+/* Series footer */
+.series { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 18px; }
+.series h2 { font-size: 16px; }
+.series ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.series li > a, .series li > span { display: inline-flex; gap: 6px; align-items: baseline; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; color: var(--fg); text-decoration: none; background: var(--panel); }
+.series li .num { font-family: var(--font-mono); color: var(--muted); font-size: 11px; }
+.series li.here > a, .series li.here > span { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.series li.later > span { color: var(--muted); background: transparent; border-style: dashed; }
+.series li a:hover { border-color: var(--muted); }
+.series p { margin: 0; color: var(--muted); font-size: 13px; }
+
+/* SVG stage */
+.sl-svg .box { fill: var(--panel); stroke: var(--line); stroke-width: 1.2; }
+.sl-svg .box-soft { fill: var(--panel-2); stroke: none; }
+.sl-svg .box-title { font: 600 13px var(--font-display); fill: var(--fg); }
+.sl-svg .box-sub { font: 11px var(--font-mono); fill: var(--muted); }
+.sl-svg .lbl { font: 12px var(--font-body); fill: var(--muted); }
+.sl-svg .val { font: 600 13px var(--font-mono); fill: var(--fg); font-variant-numeric: tabular-nums; }
+.sl-svg .val.wm { fill: var(--wm); }
+.sl-svg .tick { stroke: var(--line); }
+.sl-svg .tick-lbl { font: 10.5px var(--font-mono); fill: var(--muted); text-anchor: middle; }
+.sl-svg .now-line { stroke: var(--fg); stroke-width: 1.5; }
+.sl-svg .clock-big { font: 600 15px var(--font-mono); fill: var(--fg); font-variant-numeric: tabular-nums; }
+.sl-svg .flow { stroke: var(--line); stroke-width: 2; fill: none; marker-end: url(#arrow); }
+.sl-svg .arrowhead { fill: var(--line); }
+.sl-svg .blk .b-shape { stroke: var(--panel); stroke-width: 1.5; }
+.sl-svg .blk .b-id { font: 700 11px var(--font-mono); fill: var(--on-key); text-anchor: middle; pointer-events: none; }
+.sl-svg .blk .b-tag { font: 10px var(--font-mono); fill: var(--muted); text-anchor: middle; }
+.sl-svg .blk .b-val { font: 600 10px var(--font-mono); fill: var(--fg); text-anchor: middle; }
+.sl-svg .blk.late .b-shape, .sl-svg .blk.dropped .b-shape { fill: var(--late) !important; }
+.sl-svg .blk .b-replay { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 3 2; }
+.sl-svg .pill rect.p-bg { fill: var(--panel); stroke-width: 1.5; }
+.sl-svg .pill.dup rect.p-bg { stroke-dasharray: 4 3; }
+.sl-svg .pill .p-txt { font: 12px var(--font-mono); fill: var(--fg); }
+.sl-svg .pill .p-time { font: 11px var(--font-mono); fill: var(--muted); text-anchor: end; }
+.sl-svg .pill .p-flag { font: 700 10px var(--font-mono); fill: var(--accent); }
+.sl-svg .wm-line { stroke: var(--wm); stroke-width: 2; stroke-dasharray: 6 4; }
+.sl-svg .wm-shade { fill: var(--wm-soft); }
+.sl-svg .wm-tag rect { fill: var(--wm); }
+.sl-svg .wm-tag text { font: 700 11px var(--font-mono); fill: var(--panel); }
+.sl-svg .barrier line { stroke: var(--accent); stroke-width: 3; }
+.sl-svg .barrier rect { fill: var(--accent); }
+.sl-svg .barrier text { font: 700 10px var(--font-mono); fill: var(--on-accent); }
+.sl-svg .crash { fill: var(--danger); opacity: 0; }
+.sl-svg .danger-txt { font: 700 13px var(--font-display); fill: var(--danger); }
+.sl-svg .ok-txt { font: 600 12px var(--font-mono); fill: var(--ok); }
+.sl-svg .muted-txt { font: 12px var(--font-body); fill: var(--muted); }
+
+@media (max-width: 960px) {
+  .lab { grid-template-columns: minmax(0, 1fr); }
+  .chapters { position: static; display: flex; overflow-x: auto; gap: 6px; padding-bottom: 4px; }
+  .chapters .rail-label { display: none; }
+  .chap { flex: 0 0 auto; grid-template-columns: auto auto; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+  .chap small { display: none; }
+  .explain { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
+}
+
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="hero">
+    <div class="eyebrow"><b>Proton Stream Lab</b><span>Episode 1 of the series</span><span>How Timeplus Proton processes streams</span></div>
+    <h1>Stateless transformation</h1>
+    <p class="lede">Before windows and joins, the simplest streaming query: read events, filter them, compute new columns, emit. No memory between events. This episode sets up the visual language the rest of the series uses.</p>
+  </header>
+
+  <section class="lab" aria-label="Interactive lab">
+    <nav class="chapters" id="chapters" aria-label="Chapters"><div class="rail-label">Chapters</div></nav>
+    <div class="stage-col">
+      <div class="stage-card">
+        <div class="stage-scroll"><svg id="stage" class="sl-svg" viewBox="0 0 1200 600" role="img" aria-label="Animated pipeline"></svg></div>
+        <div class="controls">
+          <button class="btn primary" id="play" type="button">Play</button>
+          <button class="btn" id="step" type="button" title="Advance one step (→)">Step</button>
+          <button class="btn" id="restart" type="button">Restart</button>
+          <span class="ctl-label">Speed</span>
+          <div class="seg" id="speed" role="group" aria-label="Speed">
+            <button type="button" data-s="0.5" aria-pressed="false">½×</button>
+            <button type="button" data-s="1" aria-pressed="true">1×</button>
+            <button type="button" data-s="2" aria-pressed="false">2×</button>
+            <button type="button" data-s="4" aria-pressed="false">4×</button>
+          </div>
+          <span class="status" id="status">Ready</span>
+          <span class="spacer"></span>
+          <span class="clock" id="clock"><span>processing time</span> 00:00.0</span>
+        </div>
+      </div>
+      <div class="explain">
+        <article class="panel ch-text">
+          <h2 id="ch-title"></h2>
+          <div class="sub" id="ch-sub"></div>
+          <div id="ch-body"></div>
+          <div class="playground" id="playground" hidden></div>
+          <h3>What to watch</h3>
+          <ul id="ch-watch"></ul>
+        </article>
+        <aside class="panel side">
+          <h3>The query</h3>
+          <pre class="sql" id="ch-sql"></pre>
+          <h3>In the Proton code</h3>
+          <ul class="refs" id="ch-refs"></ul>
+          <h3>Event log</h3>
+          <ol class="log" id="log"></ol>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="legend" aria-label="How to read the stage">
+    <h2>How to read the stage</h2>
+    <div class="legend-grid">
+      <div class="legend-item"><svg class="sl-svg" viewBox="-32 -22 64 44"><g class="blk" transform="translate(-12,-4)"><circle class="b-shape" r="11.5" style="fill:var(--k-a)"></circle><text class="b-id" dy="0.36em">7</text><text class="b-tag" y="24">12s</text></g><g class="blk" transform="translate(16,-4)"><circle class="b-shape" r="11.5" style="fill:var(--k-b)"></circle><text class="b-id" dy="0.36em">8</text><text class="b-tag" y="24">9s</text></g></svg><div><b>An event</b><span>Color is the key, the number is the event id, the tag below is its event time.</span></div></div>
+      <div class="legend-item"><svg class="sl-svg" viewBox="-32 -22 64 44"><g class="blk" transform="translate(-12,0)"><circle class="b-shape" r="11.5" style="fill:var(--k-c)"></circle><text class="b-id" dy="0.36em">3</text></g><g class="blk" transform="translate(16,0)"><rect class="b-shape" x="-11" y="-11" width="22" height="22" rx="3" style="fill:var(--k-c)"></rect><text class="b-id" dy="0.36em">4</text></g></svg><div><b>Shape is the stream</b><span>Circles come from the main (left) stream, squares from the right side of a join.</span></div></div>
+      <div class="legend-item"><svg class="sl-svg" viewBox="-32 -22 64 44"><rect x="-30" y="-14" width="60" height="28" rx="6" style="fill:var(--panel-2)"></rect><line x1="20" x2="20" y1="-18" y2="18" class="now-line"></line><text class="tick-lbl" x="-4" y="4">+1s</text></svg><div><b>Processing time</b><span>The clock and the source tape. "now" is where the reader is.</span></div></div>
+      <div class="legend-item"><svg class="sl-svg" viewBox="-32 -22 64 44"><rect class="wm-shade" x="-30" y="-18" width="30" height="36"></rect><line class="wm-line" x1="0" x2="0" y1="-18" y2="18"></line></svg><div><b>Watermark</b><span>An event-time promise: nothing earlier is expected. Windows close when it passes their end.</span></div></div>
+      <div class="legend-item"><svg class="sl-svg" viewBox="-32 -22 64 44"><g class="barrier" transform="translate(-10,8)"><line x1="0" x2="0" y1="-18" y2="12"></line><rect x="0" y="-30" width="40" height="13" rx="2"></rect></g></svg><div><b>Checkpoint barrier</b><span>Injected at the source; each operator saves its state when it passes.</span></div></div>
+      <div class="legend-item"><svg class="sl-svg" viewBox="-32 -22 64 44"><g class="blk late" transform="translate(-12,0)"><circle class="b-shape" r="11.5"></circle><text class="b-id" dy="0.36em">5</text></g><g class="blk replay" transform="translate(16,0)"><circle class="b-shape" r="11.5" style="fill:var(--k-b)"></circle><circle class="b-replay" r="15.5"></circle><text class="b-id" dy="0.36em">9</text></g></svg><div><b>Grey, dashed ring</b><span>Grey: dropped (filtered out or late). Dashed ring: re-read after recovery.</span></div></div>
+      <div class="legend-item"><svg class="sl-svg" viewBox="-32 -22 64 44"><g class="pill" transform="translate(-30,0)"><rect class="p-bg" x="0" y="-12" width="60" height="24" rx="12" style="stroke:var(--k-a)"></rect><circle cx="12" cy="0" r="5" style="fill:var(--k-a)"></circle></g></svg><div><b>Output row</b><span>What the query emits, with the processing time it was emitted.</span></div></div>
+    </div>
+  </section>
+
+  <footer class="series">
+    <h2>The series</h2>
+    <ol><li class="here"><span><span class="num">01</span>Stateless transform</span></li><li class="later"><span><span class="num">02</span>Streaming aggregation</span></li><li class="later"><span><span class="num">03</span>Streaming join</span></li><li class="later"><span><span class="num">04</span>Changelog</span></li><li class="later"><span><span class="num">05</span>Backfill</span></li><li class="later"><span><span class="num">06</span>S3 storage</span></li><li class="later"><span><span class="num">07</span>Hybrid hash table</span></li><li class="later"><span><span class="num">08</span>Materialized views</span></li><li class="later"><span><span class="num">09</span>Checkpoint</span></li><li class="later"><span><span class="num">10</span>Cluster</span></li></ol>
+    <p>Built from the Proton KT sessions by 杨力 and the open-source code at github.com/timeplus-io/proton. Blocks, colors and timing are simplified; operator names and rules follow the code.</p>
+  </footer>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+/* Proton Stream Lab, shared runtime (needs d3 v7).
+   Every episode uses the same pieces: a step runner, event blocks, output pills,
+   a source tape that moves with processing time, a log, and the chapter UI. */
+const SL = (() => {
+  const CANCEL = { cancelled: true };
+  let speed = 1;
+  let runner = null;
+
+  const d = (ms) => Math.max(0, ms / speed);
+  const fmt = (t) => {
+    const s = Math.max(0, t);
+    const m = Math.floor(s / 60);
+    return `${String(m).padStart(2, "0")}:${(s % 60).toFixed(1).padStart(4, "0")}`;
+  };
+  const keyColor = (k) => `var(--k-${String(k).toLowerCase()})`;
+
+  /* Await a promise; throw CANCEL if the chapter was reset meanwhile. */
+  async function W(p) {
+    const g = runner ? runner.gen : 0;
+    await p;
+    if (runner && g !== runner.gen) throw CANCEL;
+  }
+  const sleep = (ms) => W(new Promise((r) => setTimeout(r, d(ms))));
+  const all = (ps) => W(Promise.all(ps));
+
+  function tr(sel, ms, ease = d3.easeCubicInOut) {
+    return sel.transition().duration(d(ms)).ease(ease);
+  }
+  function done(t) { return t.end().catch(() => {}); }
+
+  /* Move a <g> to (x,y) with optional scale; resolves when finished. */
+  function move(sel, x, y, ms = 400, opts = {}) {
+    const s = opts.scale ?? 1;
+    sel.each(function () { this.__x = x; this.__y = y; });
+    const tf = `translate(${x},${y}) scale(${s})`;
+    if (ms <= 0) { sel.interrupt().attr("transform", tf); return Promise.resolve(); }
+    return done(tr(sel, ms, opts.ease || d3.easeCubicInOut).attr("transform", tf));
+  }
+  function place(sel, x, y, s = 1) { sel.each(function () { this.__x = x; this.__y = y; }); sel.attr("transform", `translate(${x},${y}) scale(${s})`); return sel; }
+  function pos(sel) { const n = sel.node(); return { x: n.__x ?? 0, y: n.__y ?? 0 }; }
+  function reparent(sel, layer) { layer.node().appendChild(sel.node()); return sel; }
+  function fadeOut(sel, ms = 350, dy = 0) {
+    const n = sel.node(); if (!n) return Promise.resolve();
+    const p = pos(sel);
+    return done(tr(sel, ms).style("opacity", 0).attr("transform", `translate(${p.x},${p.y + dy}) scale(0.7)`)).then(() => sel.remove());
+  }
+
+  /* An event block. Color = key, shape = stream side (circle = left/main, square = right),
+     number = event id, tag below = event time, optional value above. */
+  function block(layer, ev, opts = {}) {
+    const g = layer.append("g").attr("class", "blk").attr("data-uid", ev.uid || ev.id);
+    if (ev.side === "R") g.append("rect").attr("class", "b-shape").attr("x", -11).attr("y", -11).attr("width", 22).attr("height", 22).attr("rx", 3);
+    else g.append("circle").attr("class", "b-shape").attr("r", 11.5);
+    g.select(".b-shape").style("fill", keyColor(ev.key));
+    if (ev.replay) g.append("circle").attr("class", "b-replay").attr("r", 15.5);
+    g.append("text").attr("class", "b-id").attr("dy", "0.36em").text(ev.id);
+    if (opts.tag !== false && ev.et != null) g.append("text").attr("class", "b-tag").attr("y", 24).text(`${ev.et}s`);
+    if (ev.val != null && opts.val !== false) g.append("text").attr("class", "b-val").attr("y", -16).text(ev.valText ?? ev.val);
+    g.append("title").text(`event #${ev.id} · key ${ev.key}${ev.et != null ? ` · event time ${ev.et}s` : ""}${ev.val != null ? ` · value ${ev.valText ?? ev.val}` : ""}`);
+    if (opts.x != null) place(g, opts.x, opts.y, opts.scale ?? 1);
+    return g;
+  }
+
+  /* An output row. */
+  function pill(layer, o) {
+    const w = o.w || 272, h = 28;
+    const g = layer.append("g").attr("class", "pill" + (o.dup ? " dup" : ""));
+    g.append("rect").attr("class", "p-bg").attr("x", 0).attr("y", -h / 2).attr("width", w).attr("height", h).attr("rx", h / 2)
+      .style("stroke", o.key ? keyColor(o.key) : "var(--line)");
+    let x = 14;
+    (o.marks || [{ key: o.key, side: "L" }]).forEach((m) => {
+      if (m.side === "R") g.append("rect").attr("x", x - 6).attr("y", -6).attr("width", 12).attr("height", 12).attr("rx", 2).style("fill", keyColor(m.key));
+      else g.append("circle").attr("cx", x).attr("cy", 0).attr("r", 6).style("fill", keyColor(m.key));
+      x += 15;
+    });
+    g.append("text").attr("class", "p-txt").attr("x", x + 2).attr("dy", "0.35em").text(o.text);
+    if (o.time != null) g.append("text").attr("class", "p-time").attr("x", w - 12).attr("dy", "0.35em").text(o.time);
+    if (o.flag) g.append("text").attr("class", "p-flag").attr("x", w - 12).attr("y", -h / 2 - 3).attr("text-anchor", "end").text(o.flag);
+    return g;
+  }
+
+  /* Output area that keeps the newest rows in a grid. */
+  class OutGrid {
+    constructor(layer, { x, y, cols, rows, cw, rh, w }) { Object.assign(this, { layer, x, y, cols, rows, cw, rh, w }); this.items = []; }
+    slot(i) { return { x: this.x + (i % this.cols) * this.cw, y: this.y + Math.floor(i / this.cols) * this.rh }; }
+    async add(o, from) {
+      const ps = [];
+      if (this.items.length >= this.cols * this.rows) {
+        const drop = this.items.splice(0, this.cols);
+        drop.forEach((g) => ps.push(fadeOut(g, 250)));
+        this.items.forEach((g, i) => { const s = this.slot(i); ps.push(move(g, s.x, s.y, 300)); });
+      }
+      const g = pill(this.layer, { ...o, w: this.w });
+      const i = this.items.length; this.items.push(g);
+      const s = this.slot(i);
+      place(g, from.x, from.y, 0.35);
+      g.style("opacity", 0.2);
+      g.transition("fade").duration(d(200)).style("opacity", 1);
+      ps.push(move(g, s.x, s.y, 520, { ease: d3.easeCubicOut }));
+      return W(Promise.all(ps));
+    }
+    clear() { this.items.forEach((g) => g.remove()); this.items = []; }
+  }
+
+  /* Source tape: future events wait to the left of "now", placed by arrival (processing) time. */
+  class Tape {
+    constructor(layer, clipLayer, { x0, nowX, y, pps, label, sub }) {
+      Object.assign(this, { x0, nowX, y, pps });
+      this.items = new Map();
+      const L = layer.append("g").attr("class", "tape");
+      L.append("rect").attr("class", "box-soft").attr("x", x0).attr("y", y - 24).attr("width", nowX - x0).attr("height", 48).attr("rx", 8);
+      for (let s = 0; s * pps <= nowX - x0 - 4; s++) {
+        const x = nowX - s * pps;
+        L.append("line").attr("class", "tick").attr("x1", x).attr("x2", x).attr("y1", y + 24).attr("y2", y + 30);
+        L.append("text").attr("class", "tick-lbl").attr("x", x).attr("y", y + 42).text(s === 0 ? "now" : `+${s}s`);
+      }
+      L.append("line").attr("class", "now-line").attr("x1", nowX).attr("x2", nowX).attr("y1", y - 30).attr("y2", y + 30);
+      if (label) L.append("text").attr("class", "box-title").attr("x", x0).attr("y", y - 34).text(label);
+      if (sub) L.append("text").attr("class", "box-sub").attr("x", x0).attr("y", y + 58).text(sub);
+      const id = "clip" + Math.random().toString(36).slice(2, 8);
+      layer.append("clipPath").attr("id", id).append("rect").attr("x", x0).attr("y", y - 40).attr("width", nowX - x0 + 14).attr("height", 80);
+      this.layer = clipLayer.append("g").attr("clip-path", `url(#${id})`);
+    }
+    xFor(at, clock) { return this.nowX - (at - clock) * this.pps; }
+    add(ev, clock) {
+      const g = block(this.layer, ev);
+      place(g, this.xFor(ev.at, clock), this.y);
+      this.items.set(ev.uid || ev.id, { ev, g });
+      return g;
+    }
+    advance(clock, ms) {
+      const ps = [];
+      this.items.forEach(({ ev, g }) => {
+        const x = this.xFor(ev.at, clock);
+        if (x < this.x0 - 60 && pos(g).x < this.x0 - 60) { place(g, x, this.y); return; }
+        ps.push(move(g, x, this.y, ms, { ease: d3.easeLinear }));
+      });
+      return Promise.all(ps);
+    }
+    take(ev, toLayer) {
+      const k = ev.uid || ev.id;
+      const it = this.items.get(k); this.items.delete(k);
+      if (!it) return null;
+      it.g.interrupt();
+      place(it.g, this.nowX, this.y);
+      return reparent(it.g, toLayer);
+    }
+    clear() { this.items.forEach(({ g }) => g.remove()); this.items.clear(); }
+  }
+
+  function defs(svg) {
+    const df = svg.append("defs");
+    df.append("marker").attr("id", "arrow").attr("viewBox", "0 0 10 10").attr("refX", 9).attr("refY", 5)
+      .attr("markerWidth", 7).attr("markerHeight", 7).attr("orient", "auto-start-reverse")
+      .append("path").attr("class", "arrowhead").attr("d", "M0,0 L10,5 L0,10 z");
+    return df;
+  }
+  function boxWithTitle(layer, { x, y, w, h, title, sub }) {
+    const g = layer.append("g");
+    g.append("rect").attr("class", "box").attr("x", x).attr("y", y).attr("width", w).attr("height", h).attr("rx", 10);
+    if (title) g.append("text").attr("class", "box-title").attr("x", x + 14).attr("y", y + 22).text(title);
+    if (sub) g.append("text").attr("class", "box-sub").attr("x", x + 14).attr("y", y + 38).text(sub);
+    return g;
+  }
+  function flowArrow(layer, x1, y1, x2, y2) {
+    layer.append("path").attr("class", "flow").attr("d", `M${x1},${y1} L${x2},${y2}`);
+  }
+  function barrier(layer, n) {
+    const g = layer.append("g").attr("class", "barrier");
+    g.append("line").attr("x1", 0).attr("x2", 0).attr("y1", -18).attr("y2", 18);
+    g.append("rect").attr("x", 0).attr("y", -30).attr("width", 50).attr("height", 15).attr("rx", 2);
+    g.append("text").attr("x", 5).attr("y", -19).text(`ckpt ${n}`);
+    return g;
+  }
+  function wmTag(layer) {
+    const g = layer.append("g").attr("class", "wm-tag");
+    g.append("rect").attr("x", -30).attr("y", -10).attr("width", 60).attr("height", 18).attr("rx", 3);
+    g.append("text").attr("text-anchor", "middle").attr("dy", "0.32em").text("WM");
+    return g;
+  }
+
+  /* Advance processing time to t: the tapes slide, the clock counts up. */
+  function clockTo(A, tapes, t, onTick) {
+    const from = A.clock;
+    if (t <= from + 1e-9) return Promise.resolve();
+    const ms = Math.min(1500, Math.max(160, (t - from) * 520));
+    const ps = tapes.map((tp) => tp.advance(t, ms));
+    const ticker = d3.select("#stage").transition("clock").duration(d(ms)).ease(d3.easeLinear)
+      .tween("clock", () => (k) => { const v = from + (t - from) * k; A.setClock(v); if (onTick) onTick(v); });
+    ps.push(done(ticker).then(() => { A.setClock(t); if (onTick) onTick(t); }));
+    return W(Promise.all(ps));
+  }
+
+  function rng(seed) {
+    let a = seed >>> 0;
+    return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+
+  function sqlHtml(sql) {
+    const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return sql.split("\n").map((line) => {
+      const i = line.indexOf("--");
+      const code = i >= 0 ? line.slice(0, i) : line;
+      const cm = i >= 0 ? line.slice(i) : "";
+      const kw = /\b(SELECT|FROM|WHERE|GROUP BY|AS|EMIT|PERIODIC|ON UPDATE|AFTER WINDOW CLOSE|WITH DELAY|WITH|DELAY|JOIN|LEFT|INNER|ON|AND|CREATE|MATERIALIZED VIEW|INTO|SETTINGS|ASOF|LATEST|CHANGELOG|STREAM|CASE|WHEN|THEN|ELSE|END)\b/g;
+      return esc(code).replace(kw, '<span class="kw">$1</span>') + (cm ? `<span class="cm">${esc(cm)}</span>` : "");
+    }).join("\n");
+  }
+
+  /* Chapter UI and transport. `ep` supplies chapters, setup(ch, opts) and handle(item). */
+  function app(ep) {
+    const $ = (s) => document.querySelector(s);
+    let current = null;
+    let clock = 0;
+    const logEl = $("#log");
+    const playBtn = $("#play"), stepBtn = $("#step"), restartBtn = $("#restart"), statusEl = $("#status");
+
+    const ui = () => {
+      const r = runner;
+      playBtn.textContent = r.done ? "Done" : r.paused ? (r.started ? "Resume" : "Play") : "Pause";
+      playBtn.disabled = r.done;
+      stepBtn.disabled = r.done || !r.paused;
+      statusEl.textContent = r.done ? "Finished. Restart or pick another chapter." : r.paused ? (r.started ? "Paused" : "Ready") : "Playing";
+    };
+    runner = new Runner(async (item) => { await ep.handle(item); }, ui);
+
+    function log(msg) {
+      const li = document.createElement("li");
+      li.innerHTML = `<time>${fmt(clock)}</time><span></span>`;
+      li.querySelector("span").textContent = msg;
+      const empty = logEl.querySelector(".empty"); if (empty) empty.remove();
+      logEl.prepend(li);
+      while (logEl.children.length > 40) logEl.lastChild.remove();
+    }
+    function setClock(t) { clock = t; $("#clock").innerHTML = `<span>processing time</span> ${fmt(t)}`; }
+
+    function renderChapterText(ch) {
+      $("#ch-title").textContent = ch.title;
+      $("#ch-sub").textContent = ch.sub || "";
+      $("#ch-body").innerHTML = ch.body.map((p) => `<p>${p}</p>`).join("");
+      $("#ch-watch").innerHTML = ch.watch.map((w) => `<li>${w}</li>`).join("");
+      $("#ch-sql").innerHTML = sqlHtml(ch.sql);
+      $("#ch-refs").innerHTML = (ch.refs || []).map((r) => `<li>${r}</li>`).join("");
+      const pg = $("#playground");
+      if (pg) { pg.hidden = !ch.playground; if (ch.playground && ep.renderPlayground) ep.renderPlayground(pg, () => load(current, true)); }
+    }
+
+    function load(ch, autoplay) {
+      current = ch;
+      document.querySelectorAll(".chap").forEach((b) => b.setAttribute("aria-current", b.dataset.id === ch.id ? "true" : "false"));
+      try { localStorage.setItem(`sl-${ep.id}-chapter`, ch.id); } catch (e) {}
+      if (location.hash !== "#" + ch.id) history.replaceState(null, "", "#" + ch.id);
+      d3.select("#stage").interrupt("clock").selectAll("*").interrupt();
+      logEl.innerHTML = '<li class="empty">Press Play, or Step to advance one event at a time.</li>';
+      setClock(0);
+      renderChapterText(ch);
+      const queue = ep.setup(ch);
+      runner.load(queue);
+      if (autoplay && !matchMedia("(prefers-reduced-motion: reduce)").matches) runner.play();
+    }
+
+    const rail = $("#chapters");
+    ep.chapters.forEach((ch, i) => {
+      const b = document.createElement("button");
+      b.className = "chap"; b.dataset.id = ch.id; b.type = "button";
+      b.innerHTML = `<span class="n">${String(i + 1).padStart(2, "0")}</span><span>${ch.title}<small>${ch.short || ""}</small></span>`;
+      b.addEventListener("click", () => load(ch, true));
+      rail.appendChild(b);
+    });
+    playBtn.addEventListener("click", () => { runner.paused ? runner.play() : runner.pause(); });
+    stepBtn.addEventListener("click", () => runner.step());
+    restartBtn.addEventListener("click", () => load(current, false));
+    document.querySelectorAll("#speed button").forEach((b) => b.addEventListener("click", () => {
+      speed = +b.dataset.s;
+      document.querySelectorAll("#speed button").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+    }));
+    document.addEventListener("keydown", (e) => {
+      if (e.target.closest("input,select,textarea")) return;
+      if (e.code === "Space") { e.preventDefault(); runner.paused ? runner.play() : runner.pause(); }
+      if (e.code === "ArrowRight") { e.preventDefault(); if (runner.paused) runner.step(); }
+    });
+    window.addEventListener("hashchange", () => {
+      const c = ep.chapters.find((x) => "#" + x.id === location.hash);
+      if (c && c !== current) load(c, false);
+    });
+
+    let start = ep.chapters.find((x) => "#" + x.id === location.hash);
+    if (!start) { try { const s = localStorage.getItem(`sl-${ep.id}-chapter`); start = ep.chapters.find((x) => x.id === s); } catch (e) {} }
+    load(start || ep.chapters[0], false);
+
+    return { log, setClock, get clock() { return clock; }, get runner() { return runner; }, reload: () => load(current, true) };
+  }
+
+  class Runner {
+    constructor(handler, ui) { this.handler = handler; this.ui = ui; this.gen = 0; this.queue = []; this.paused = true; this.waiters = []; this.done = false; }
+    flush() { const w = this.waiters; this.waiters = []; w.forEach((r) => r()); }
+    load(queue) { this.gen++; this.queue = queue; this.paused = true; this.done = false; this.started = false; this.stepOnce = false; this.flush(); this.loop(this.gen); this.ui(); }
+    play() { if (this.done) return; this.started = true; this.paused = false; this.flush(); this.ui(); }
+    pause() { this.paused = true; this.ui(); }
+    step() { if (this.done) return; this.started = true; this.stepOnce = true; this.paused = false; this.flush(); this.ui(); }
+    async loop(g) {
+      while (g === this.gen) {
+        if (this.paused) { await new Promise((r) => this.waiters.push(r)); continue; }
+        const it = this.queue.shift();
+        if (!it) { this.done = true; this.paused = true; this.ui(); await new Promise((r) => this.waiters.push(r)); continue; }
+        try { await this.handler(it); } catch (e) { if (e === CANCEL) return; console.error(e); }
+        if (g !== this.gen) return;
+        if (this.stepOnce) { this.stepOnce = false; this.paused = true; }
+        if (!this.queue.length) this.done = true, this.paused = true;
+        this.ui();
+      }
+    }
+  }
+
+  return { CANCEL, W, sleep, all, tr, done, move, place, pos, reparent, fadeOut, block, pill, OutGrid, Tape, defs, boxWithTitle, flowArrow, barrier, wmTag, rng, clockTo, fmt, keyColor, app, d };
+})();
+
+</script>
+<script>
+/* Episode 1: stateless transformation (filter, map, chunks, restart). */
+(() => {
+  const KEYS = ["A", "B", "C"];
+  const G = { tape: { x0: 20, nowX: 300, y: 120, pps: 52 }, opY: 46, opH: 150, opW: 230, outY: 334 };
+  let A, L, tape, out, S;
+
+  const c2f = (c) => Math.round((c * 1.8 + 32) * 10) / 10;
+
+  /* Sample stream: device readings. at = arrival (processing) time, et = event time. */
+  const BASE = [
+    { id: 1, key: "A", et: 1, at: 1.4, val: 24 },
+    { id: 2, key: "B", et: 2, at: 2.3, val: 33 },
+    { id: 3, key: "C", et: 3, at: 3.6, val: 31 },
+    { id: 4, key: "A", et: 2, at: 4.1, val: 35 },
+    { id: 5, key: "B", et: 4, at: 4.8, val: 27 },
+    { id: 6, key: "C", et: 5, at: 5.6, val: 36 },
+    { id: 7, key: "A", et: 6, at: 6.5, val: 32 },
+    { id: 8, key: "B", et: 7, at: 7.3, val: 29 },
+    { id: 9, key: "C", et: 8, at: 8.1, val: 34 },
+    { id: 10, key: "A", et: 9, at: 9.2, val: 38 },
+    { id: 11, key: "B", et: 10, at: 10.0, val: 30 },
+    { id: 12, key: "C", et: 11, at: 10.9, val: 33 },
+  ];
+  const withText = (e, unit = "°C") => ({ ...e, valText: `${e.val}${unit}` });
+
+  const OPS = {
+    filter: { title: "Filter", sub: "WHERE temperature > 30", test: (e) => e.val > 30 },
+    map: { title: "Expression", sub: "temp_f = temperature × 1.8 + 32" },
+  };
+
+  const SQL = {
+    pass: `SELECT device, temperature, _tp_time\nFROM sensors;   -- runs until you cancel it`,
+    filter: `SELECT device, temperature\nFROM sensors\nWHERE temperature > 30;`,
+    map: `SELECT device,\n       temperature * 1.8 + 32 AS temp_f\nFROM sensors;`,
+    chunk: `SELECT device,\n       temperature * 1.8 + 32 AS temp_f\nFROM sensors\nWHERE temperature > 30;`,
+    mv: `CREATE MATERIALIZED VIEW hot_readings_mv\nINTO hot_readings AS\nSELECT device,\n       temperature * 1.8 + 32 AS temp_f\nFROM sensors\nWHERE temperature > 30;`,
+  };
+
+  const chapters = [
+    {
+      id: "events", title: "Events on a stream", short: "Event time vs processing time", sub: "SELECT * on an unbounded stream",
+      ops: [], script: BASE, sql: SQL.pass,
+      body: [
+        "A streaming query never finishes. It sits at the end of the stream and handles each event as it arrives, for as long as the query runs.",
+        "Each block is one event. Its color is the device (the key), the number is its id, the value above is the reading, and the tag below is its <b>event time</b>: when the reading was taken. The clock is <b>processing time</b>: when Proton reads the event.",
+      ],
+      watch: [
+        "Blocks on the tape are spaced by arrival time. The \"now\" line is the reader; everything left of it hasn't arrived yet.",
+        "Event #4 was taken at 2s but arrives after #3 (3s). Streams are often out of order, and later episodes deal with that.",
+        "The gap between an event's tag and the clock when it is read is its delay.",
+      ],
+      refs: ["Event time lives in <code>_tp_time</code> by default.", "Streaming reads come from NativeLog through the stream source: <code>src/Processors/Sources/</code>."],
+    },
+    {
+      id: "filter", title: "Filter", short: "WHERE drops rows", sub: "Stateless: each event decided on its own",
+      ops: ["filter"], script: BASE, sql: SQL.filter,
+      body: [
+        "A filter checks every event against the WHERE clause. Events that pass go on; events that fail are dropped on the spot.",
+        "The filter remembers nothing. The decision for event #7 doesn't depend on anything before it, so the operator has no state to save or restore.",
+      ],
+      watch: ["Readings of 30°C or less turn grey and fall into the dropped tray.", "Order is kept: survivors leave in the order they arrived."],
+      refs: ["Planned as a <code>FilterTransform</code> in <code>EXPLAIN PIPELINE</code>.", "Same code path as batch queries: streaming adds no extra machinery for stateless steps."],
+    },
+    {
+      id: "map", title: "Map and project", short: "Compute new columns", sub: "One row in, one row out",
+      ops: ["map"], script: BASE, sql: SQL.map,
+      body: [
+        "An expression step computes new columns from each event and keeps only the columns you select. Here Celsius becomes Fahrenheit.",
+        "Like the filter, it is stateless. One event in, one event out, with the same id and event time.",
+      ],
+      watch: ["The value above each block changes as it passes the expression box.", "The event time tag is untouched. Changing a value doesn't change when the reading happened."],
+      refs: ["Planned as an <code>ExpressionTransform</code>.", "Inside a substream pipeline: <code>ExpressionTransformWithSubstream</code> (<code>src/Processors/Transforms/Streaming/</code>)."],
+    },
+    {
+      id: "chunks", title: "Chunks through a pipeline", short: "Events travel in batches", sub: "Filter and map, chained",
+      ops: ["filter", "map"], script: BASE, sql: SQL.chunk, chunked: true,
+      body: [
+        "Proton doesn't push events one at a time. The source collects what has arrived into a <b>chunk</b> (a small columnar batch) and sends the chunk through the pipeline.",
+        "Each operator processes the whole chunk at once. Batching is why throughput is high, and the flush interval is why there is a small extra delay.",
+      ],
+      watch: ["Events wait in the read buffer until the source flushes a chunk, every 2 seconds here.", "The filter shrinks the chunk; the expression transforms what is left."],
+      refs: ["A chunk is <code>DB::Chunk</code> (<code>src/Processors/Chunk.h</code>). Watermarks and checkpoint requests also ride on chunks, as you'll see in later episodes.", "Use <code>EXPLAIN PIPELINE</code> to see the operator chain."],
+    },
+    {
+      id: "restart", title: "Restart a stateless view", short: "Only the source offset is saved", sub: "Materialized view, checkpoint, crash",
+      ops: ["filter", "map"], script: BASE, sql: SQL.mv, ckpt: { after: 6, crashAfter: 9 },
+      body: [
+        "A materialized view runs the query forever and writes results into a target stream. To survive a restart it checkpoints.",
+        "A checkpoint barrier enters at the source, which records how far it has read (its sequence number, sn). The filter and expression have no state to save, so the checkpoint is just that offset. After a crash, the view re-reads the source from the saved offset.",
+      ],
+      watch: [
+        "The barrier flows through the operators like an event and they pass it straight on.",
+        "Events #7 to #9 were read after the checkpoint, so they are read again after the crash. Their output rows appear a second time (marked <i>again</i>).",
+      ],
+      refs: [
+        "<code>src/Checkpoint/CheckpointCoordinator.cpp</code> schedules checkpoints. With the default interval, a pipeline whose only state is the source offset checkpoints about every 5 s.",
+        "Rows written between the checkpoint and the crash can be written again. A target keyed by primary key (a mutable stream) absorbs the repeats.",
+      ],
+    },
+  ];
+
+  function opBox(i, n) {
+    const span = 1180 - 360;
+    const gap = n === 1 ? 0 : (span - n * G.opW) / (n);
+    const x = 360 + i * (G.opW + gap) + (n === 1 ? (span - G.opW) / 2 - 180 : 0);
+    return { x, y: G.opY, w: G.opW, h: G.opH, cx: x + G.opW / 2, cy: G.opY + 96 };
+  }
+
+  function setup(ch) {
+    const svg = d3.select("#stage").attr("viewBox", "0 0 1200 500");
+    svg.selectAll("*").remove();
+    SL.defs(svg);
+    L = {
+      bg: svg.append("g"), fx: svg.append("g"), tape: svg.append("g"), blocks: svg.append("g"), out: svg.append("g"), top: svg.append("g"),
+    };
+    tape = new SL.Tape(L.bg, L.tape, { ...G.tape, label: "Source · sensors stream", sub: "waiting events, spaced by arrival time" });
+    S = { clock: 0, ops: ch.ops.map((k, i) => ({ k, ...OPS[k], ...opBox(i, ch.ops.length) })), dropped: [], readSn: 0, buffer: [], ckpt: null, ch, emitted: new Set() };
+
+    // operator boxes
+    let prevX = G.tape.nowX + 8;
+    S.ops.forEach((op) => {
+      SL.flowArrow(L.bg, prevX, G.tape.y, op.x - 6, G.tape.y);
+      SL.boxWithTitle(L.bg, { x: op.x, y: op.y, w: op.w, h: op.h, title: op.title, sub: op.sub });
+      prevX = op.x + op.w + 6;
+      if (op.k === "filter") {
+        L.bg.append("rect").attr("class", "box-soft").attr("x", op.x).attr("y", op.y + op.h + 12).attr("width", op.w).attr("height", 80).attr("rx", 8);
+        L.bg.append("text").attr("class", "lbl").attr("x", op.x + 10).attr("y", op.y + op.h + 28).text("Dropped by the filter");
+      }
+    });
+    const last = S.ops.length ? S.ops[S.ops.length - 1] : null;
+    const outFromX = last ? last.cx : 420;
+    SL.flowArrow(L.bg, last ? last.x + last.w + 6 : G.tape.nowX + 8, G.tape.y, last ? 1170 : 1170, G.tape.y);
+    L.bg.append("path").attr("class", "flow").attr("d", `M1176,${G.tape.y} L1176,${G.outY - 36}`);
+    if (!S.ops.length) {
+      L.bg.append("text").attr("class", "muted-txt").attr("x", 700).attr("y", G.tape.y - 14).attr("text-anchor", "middle").text("no operators: every event goes straight to the output");
+    }
+
+    // read buffer (chunk mode)
+    if (ch.chunked) {
+      L.bg.append("rect").attr("class", "box-soft").attr("x", 20).attr("y", 196).attr("width", 280).attr("height", 70).attr("rx", 8);
+      L.bg.append("text").attr("class", "lbl").attr("x", 30).attr("y", 214).text("Read buffer: the next chunk");
+    }
+    // checkpoint store
+    if (ch.ckpt) {
+      S.ckText = SL.boxWithTitle(L.bg, { x: 20, y: 196, w: 280, h: 96, title: "Checkpoint storage", sub: "nothing saved yet" }).select(".box-sub");
+    }
+
+    // output
+    L.bg.append("rect").attr("class", "box").attr("x", 20).attr("y", G.outY - 30).attr("width", 1160).attr("height", 186).attr("rx", 10);
+    L.bg.append("text").attr("class", "box-title").attr("x", 34).attr("y", G.outY - 8).text(ch.ckpt ? "Target stream · hot_readings" : "Output rows · streamed to the client");
+    L.bg.append("text").attr("class", "box-sub").attr("x", 1166).attr("y", G.outY - 8).attr("text-anchor", "end").text("newest last · time = processing time when emitted");
+    out = new SL.OutGrid(L.out, { x: 34, y: G.outY + 26, cols: 4, rows: 4, cw: 287, rh: 36, w: 274 });
+
+    // clock text in the stage
+    S.clockTxt = L.bg.append("text").attr("class", "clock-big").attr("x", G.tape.nowX).attr("y", G.tape.y - 34).attr("text-anchor", "end").text("00:00.0");
+
+    // events
+    const evs = ch.script.map((e, i) => withText({ ...e, sn: i + 1 }));
+    evs.forEach((e) => tape.add(e, 0));
+    S.evs = evs;
+    return buildQueue(ch, evs);
+  }
+
+  function buildQueue(ch, evs) {
+    const q = [];
+    if (ch.chunked) {
+      evs.forEach((e) => q.push({ type: "arrive", ev: e, at: e.at }));
+      const end = Math.ceil(evs[evs.length - 1].at);
+      for (let t = 2; t <= end + 1; t += 2) q.push({ type: "flush", at: t + 0.01 });
+      q.sort((a, b) => a.at - b.at);
+    } else {
+      evs.forEach((e) => q.push({ type: "ev", ev: e, at: e.at }));
+      if (ch.ckpt) {
+        const a = evs[ch.ckpt.after - 1], b = evs[ch.ckpt.after];
+        q.push({ type: "ckpt", at: (a.at + b.at) / 2 });
+        const c = evs[ch.ckpt.crashAfter - 1], d = evs[ch.ckpt.crashAfter];
+        q.push({ type: "crash", at: (c.at + d.at) / 2 });
+        q.sort((x, y) => x.at - y.at);
+      }
+    }
+    return q;
+  }
+
+  const setClock = (t) => { S.clock = t; S.clockTxt.text(SL.fmt(t)); };
+
+  async function handle(it) {
+    await SL.clockTo({ get clock() { return S.clock; }, setClock: (t) => { setClock(t); A.setClock(t); } }, [tape], it.at);
+    if (it.type === "ev") return processChunk([readOne(it.ev)]);
+    if (it.type === "arrive") return arriveToBuffer(it.ev);
+    if (it.type === "flush") return flush();
+    if (it.type === "ckpt") return checkpoint();
+    if (it.type === "crash") return crash();
+  }
+
+  function readOne(ev) {
+    const g = tape.take(ev, L.blocks);
+    S.readSn = Math.max(S.readSn, ev.sn);
+    return { ev, g };
+  }
+
+  async function arriveToBuffer(ev) {
+    const it = readOne(ev);
+    S.buffer.push(it);
+    const i = S.buffer.length - 1;
+    A.log(`#${ev.id} arrived, waiting in the read buffer`);
+    await SL.W(SL.move(it.g, 44 + i * 30, 244, 380));
+  }
+  async function flush() {
+    if (!S.buffer.length) { A.log("Source flush: buffer empty, nothing to send"); return SL.sleep(150); }
+    const items = S.buffer; S.buffer = [];
+    A.log(`Source flushes a chunk of ${items.length} event${items.length > 1 ? "s" : ""}: ${items.map((x) => "#" + x.ev.id).join(", ")}`);
+    return processChunk(items);
+  }
+
+  const slotX = (op, i, n) => op.cx + (i - (n - 1) / 2) * 30;
+
+  async function processChunk(items) {
+    let live = items;
+    let frame = null;
+    const multi = S.ch.chunked;
+    for (const op of S.ops) {
+      if (!live.length) break;
+      // move into the operator
+      if (frame) frame.remove();
+      if (multi) {
+        const n = live.length, w = n * 30 + 14;
+        frame = L.fx.append("rect").attr("x", op.cx - w / 2).attr("y", op.cy - 24).attr("width", w).attr("height", 52).attr("rx", 8)
+          .style("fill", "none").style("stroke", "var(--muted)").style("stroke-dasharray", "4 3").style("opacity", 0);
+      }
+      await SL.all(live.map((x, i) => SL.move(x.g, slotX(op, i, live.length), op.cy, 420)));
+      if (frame) SL.tr(frame, 200).style("opacity", 1);
+      if (op.k === "filter") {
+        const keep = [], drop = [];
+        live.forEach((x) => (op.test(x.ev) ? keep : drop).push(x));
+        if (drop.length) {
+          drop.forEach((x) => x.g.classed("dropped", true));
+          A.log(`Filter: ${drop.map((x) => `#${x.ev.id} (${x.ev.val}°C)`).join(", ")} fail temperature > 30, dropped`);
+          await SL.sleep(250);
+          const ps = drop.map((x) => {
+            S.dropped.push(x.g);
+            const k = S.dropped.length - 1;
+            return SL.move(x.g, op.x + 22 + (k % 7) * 30, op.y + op.h + 62, 380);
+          });
+          await SL.all(ps);
+          while (S.dropped.length > 7) SL.fadeOut(S.dropped.shift(), 200);
+        }
+        if (keep.length) A.log(`Filter: ${keep.map((x) => `#${x.ev.id}`).join(", ")} pass`);
+        live = keep;
+      } else if (op.k === "map") {
+        await SL.sleep(150);
+        live.forEach((x) => {
+          const f = c2f(x.ev.val);
+          x.ev.mapped = `${f}°F`;
+          x.g.select(".b-val").text(x.ev.mapped).style("fill", "var(--accent)");
+        });
+        A.log(`Expression: ${live.map((x) => `#${x.ev.id} ${x.ev.val}°C → ${x.ev.mapped}`).join(", ")}`);
+        await SL.sleep(320);
+      }
+    }
+    if (frame) SL.fadeOut(frame, 200);
+    if (!live.length) return;
+    // emit
+    const from = S.ops.length ? { x: S.ops[S.ops.length - 1].cx, y: S.ops[S.ops.length - 1].cy } : { x: 700, y: G.tape.y };
+    for (const x of live) {
+      const valTxt = x.ev.mapped || `${x.ev.val}°C`;
+      const dup = S.emitted.has(x.ev.id);
+      S.emitted.add(x.ev.id);
+      const p = SL.pos(x.g);
+      SL.fadeOut(x.g, 260);
+      await out.add({ key: x.ev.key, text: `#${x.ev.id}  ${x.ev.key}  ${valTxt}  · et ${x.ev.et}s`, time: `@${SL.fmt(S.clock)}`, dup, flag: dup ? "again" : null }, p);
+    }
+    if (!S.ch.chunked && !S.ops.length) A.log(`#${live[0].ev.id} read at ${SL.fmt(S.clock)}, event time ${live[0].ev.et}s → emitted`);
+    if (S.ops.length && !S.ch.chunked) A.log(`Emitted ${live.map((x) => "#" + x.ev.id).join(", ")}`);
+  }
+
+  async function checkpoint() {
+    S.ckN = (S.ckN || 0) + 1;
+    const b = SL.barrier(L.top, S.ckN);
+    SL.place(b, G.tape.nowX, G.tape.y);
+    b.style("opacity", 0); SL.tr(b, 200).style("opacity", 1);
+    A.log(`Checkpoint ${S.ckN}: barrier injected at the source. Source has read up to sn ${S.readSn}`);
+    S.ckpt = { n: S.ckN, sn: S.readSn };
+    await SL.sleep(300);
+    for (const op of S.ops) {
+      await SL.W(SL.move(b, op.cx, op.cy, 420));
+      A.log(`${op.title}: no state, forwards the barrier`);
+      await SL.sleep(150);
+    }
+    await SL.W(SL.move(b, 1176, G.outY - 40, 420));
+    S.ckText.text(`ckpt ${S.ckpt.n} ✓ committed`).style("fill", "var(--ok)");
+    const g = L.bg.append("g");
+    g.append("text").attr("class", "val").attr("x", 34).attr("y", 258).text(`source offset: sn ${S.ckpt.sn}`);
+    g.append("text").attr("class", "muted-txt").attr("x", 34).attr("y", 278).text("operator state: none (stateless)");
+    A.log(`Checkpoint ${S.ckpt.n} committed: source sn ${S.ckpt.sn}, no operator state`);
+    await SL.fadeOut(b, 250);
+  }
+
+  async function crash() {
+    const flash = L.top.append("rect").attr("class", "crash").attr("x", 330).attr("y", 30).attr("width", 860).attr("height", 250).attr("rx", 10);
+    await SL.W(SL.done(SL.tr(flash, 160).style("opacity", 0.18)));
+    const t = L.top.append("text").attr("class", "danger-txt").attr("x", 760).attr("y", 268).attr("text-anchor", "middle").text("Crash: the view restarts");
+    A.log("Crash. The view restarts and recovers from checkpoint " + S.ckpt.n);
+    await SL.sleep(500);
+    SL.tr(flash, 300).style("opacity", 0).remove();
+    SL.fadeOut(t, 600);
+    // rewind: events read after the checkpoint are read again
+    const again = S.evs.filter((e) => e.sn > S.ckpt.sn && e.sn <= S.readSn);
+    const q = A.runner.queue;
+    const step = 0.7;
+    const shift = step * (again.length + 1);
+    q.forEach((x) => { x.at += shift; if (x.ev) x.ev.at = x.at; });
+    const replays = again.map((e, i) => ({ ...e, uid: `${e.id}r`, replay: true, at: S.clock + step * (i + 1), mapped: null }));
+    replays.forEach((e) => { S.evs.push(e); });
+    // move pending tape events to their new spots, and add replays
+    replays.forEach((e) => tape.add(e, S.clock));
+    q.unshift(...replays.map((e) => ({ type: "ev", ev: e, at: e.at })));
+    S.readSn = S.ckpt.sn;
+    A.log(`Source rewinds to sn ${S.ckpt.sn + 1} and re-reads ${again.map((e) => "#" + e.id).join(", ")}`);
+    await SL.W(tape.advance(S.clock, 600));
+  }
+
+  const ep = { id: "ep1", chapters, setup, handle };
+  window.addEventListener("DOMContentLoaded", () => { A = SL.app(ep); });
+})();
+
+</script>
+</body>
+</html>

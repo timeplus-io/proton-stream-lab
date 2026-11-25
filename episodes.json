@@ -1,0 +1,14 @@
+[
+  {"num": 1, "slug": "01-transform", "name": "Stateless transform", "title": "Stateless Stream Transform",
+   "h1": "Stateless transformation",
+   "lede": "Before windows and joins, the simplest streaming query: read events, filter them, compute new columns, emit. No memory between events. This episode sets up the visual language the rest of the series uses.",
+   "description": "Animated explainer of how Proton streams events through stateless filter and expression operators."},
+  {"num": 2, "slug": "02-aggregation", "name": "Streaming aggregation", "title": "Streaming Aggregation Lab",
+   "h1": "Streaming aggregation",
+   "lede": "Aggregation is where a stream query starts to remember. Watch state build up in a hash table, see watermarks decide when a window is final, and see a checkpoint carry that state across a crash.",
+   "description": "Animated explainer of Proton global and windowed aggregation, watermarks, emit policies, late events and checkpoints."},
+  {"num": 3, "slug": "03-join", "name": "Streaming join", "title": "Streaming Join Lab",
+   "h1": "Streaming join",
+   "lede": "A join matches events from two inputs. Which side keeps a hash table, and for how long, decides whether the join is cheap or grows without bound.",
+   "description": "Animated explainer of Proton enrichment and bidirectional joins, range joins and aligned checkpoints."}
+]
