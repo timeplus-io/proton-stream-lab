@@ -1,6 +1,6 @@
 /* Episode 2: streaming aggregation. Same stage as episode 1, but the operator now keeps state.
    Input cards are routed to their key's row and absorbed into a hollow state card.
-   The output is one stream: one card per record, all in one line. */
+   The output is one stream: each record comes out of its key's state card and merges into one line. */
 (() => {
   const W = 1200, H = 404, V = 96;
   const { w: CW } = Lab.CARD;
@@ -13,7 +13,7 @@
   const ROUTE = 0.9;      // seconds before arrival when a card turns toward its key's row
   const SLOT = (CW + 8) / V;   // output records leave one card apart
   const PERIOD = 5;       // EMIT PERIODIC interval in seconds
-  const GROW = 1.0;       // seconds an output takes to grow out of the operator
+  const GROW = 1.0;       // seconds an output takes to leave its state card and reach the output line
   const WIN = 5;          // window size in seconds
   const t8 = (t) => Lab.hms(t).slice(0, 8);
 
@@ -117,7 +117,8 @@
     if (windowed()) Lab.setState(s.g, [...s.wins.keys()].sort((a, b) => a - b).map((ws) => ({ l: t8(ws), r: s.wins.get(ws) })));
     else Lab.setState(s.g, [{ l: "count", r: s.count }]);
   }
-  /* One output stream: one card per record, all in one line, like the rows of the SQL result.
+  /* One output stream: one card per record, like the rows of the SQL result.
+     A record is born at its key's state card and merges into the single output line.
      Records emitted at the same moment leave the operator one after another, because the line is one card wide.
      rows = [{ key, count, timeText }], all emitted at processing time T. */
   function emit(rows, T) {
@@ -125,7 +126,7 @@
       const at = Math.max(T, outFree);
       outFree = at + SLOT;
       const g = Lab.card(L.out, { key: r.key, title: `device ${r.key}`, valText: `count ${r.count}`, timeText: r.timeText }).style("display", "none");
-      outs.push({ g, T: at });
+      outs.push({ g, T: at, y0: ROW[r.key] });
     });
   }
 
@@ -207,9 +208,9 @@
       }
       c.g.attr("transform", `translate(${OP.cx - V * dt},${y}) scale(${sc})`).style("opacity", op);
     });
-    outs.forEach((o) => {               // grow out of the operator, then ride the output lane
+    outs.forEach((o) => {               // come out of the key's state card, then merge into the one output line
       const u = Math.min(1, (now - o.T) / GROW), e = u * u * (3 - 2 * u);
-      o.g.attr("transform", `translate(${OP.cx + V * (now - o.T)},${IN_Y}) scale(${0.28 + 0.72 * e})`).style("display", now < o.T ? "none" : null).style("opacity", Math.min(1, (now - o.T) / 0.15));
+      o.g.attr("transform", `translate(${OP.cx + V * (now - o.T)},${o.y0 + (IN_Y - o.y0) * e}) scale(${0.28 + 0.72 * e})`).style("display", now < o.T ? "none" : null).style("opacity", Math.min(1, (now - o.T) / 0.15));
     });
     drops.forEach((d) => {
       const t = Math.max(0, now - d.at - 0.25);
