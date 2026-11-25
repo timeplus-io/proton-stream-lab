@@ -7,7 +7,7 @@ Each episode is one self-contained HTML page with chapters you can play, pause a
 |---|---|---|
 | 01 | [Stateless transform](dist/01-transform.html) | event time vs processing time, filter, expressions, chunks, restarting a stateless materialized view |
 | 02 | [Streaming aggregation](dist/02-aggregation.html) | global aggregation, EMIT PERIODIC / ON UPDATE, tumble and hop windows, watermarks, late events, DELAY, checkpoint and recovery |
-| 03 | Streaming join | enrichment vs bidirectional joins, hash table state, range joins, aligned checkpoint barriers |
+| 03 | [Streaming join](dist/03-join.html) | enrichment vs bidirectional joins, hash table state, range joins, aligned checkpoint barriers |
 
 Planned, following the Proton KT order: changelog, backfill, S3 storage, hybrid hash table, materialized views, checkpoint, cluster.
 
