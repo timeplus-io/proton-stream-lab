@@ -11,6 +11,8 @@ Each episode is one self-contained HTML page with chapters you can play, pause a
 
 Planned, following the Proton KT order: changelog, backfill, S3 storage, hybrid hash table, materialized views, checkpoint, cluster.
 
+Hosted previews (private claude.ai artifacts): [01](https://claude.ai/artifact/5NnepDP1ZoGJvyrUWehrin) · [02](https://claude.ai/artifact/JMaGU5PCMeF28HHKdS6vQL) · [03](https://claude.ai/artifact/H23UQb72c9wxyJ7e4prsfx). `links.artifacts.json` maps episodes to those URLs for `build.py --fragment --links links.artifacts.json`.
+
 ## Run it
 
 No build tools are needed to view a page: open `dist/<episode>.html` in a browser (it loads D3 and fonts from public CDNs).
