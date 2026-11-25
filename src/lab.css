@@ -76,3 +76,12 @@ footer .here { font-weight: 700; color: var(--fg); }
 .sl .axis .tk text { font: 10.5px var(--font-mono); fill: var(--muted); text-anchor: middle; font-variant-numeric: tabular-nums; }
 .sl .now-mark { fill: var(--accent); }
 .note code { font: 13px var(--font-mono); background: var(--panel-2); padding: 1px 5px; border-radius: 4px; color: var(--fg); }
+.lg-sw.state { background: none; border: 2px solid var(--muted); }
+.sl .state rect.body { fill: var(--panel); stroke-width: 2; }
+.sl .state .c-flash { fill: none; stroke: var(--accent); stroke-width: 2.5; opacity: 0; }
+.sl .state .s-title { font: 600 11px var(--font-body); }
+.sl .state .s-l { font: 11.5px var(--font-mono); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.sl .state .s-r { font: 700 15px var(--font-body); fill: var(--fg); font-variant-numeric: tabular-nums; }
+.sl .axis .tk .wline { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 5; }
+.sl .wm line { stroke: var(--wm); stroke-width: 2; stroke-dasharray: 6 4; }
+.sl .wm text { font: 600 11px var(--font-mono); fill: var(--wm); text-anchor: middle; font-variant-numeric: tabular-nums; }

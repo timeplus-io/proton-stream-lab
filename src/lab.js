@@ -27,11 +27,36 @@ const Lab = (() => {
   }
   function fill(g, ev) {
     const label = ev.keyLabel || ev.key;
-    g.select(".c-id").text(`#${ev.id} · ${label}`);
+    const title = ev.title ?? `#${ev.id} · ${label}`;
+    const time = ev.timeText ?? hms(ev.et).slice(0, 8);
+    g.select(".c-id").text(title);
     g.select(".c-val").text(ev.valText);
-    g.select(".c-time").text(hms(ev.et).slice(0, 8));
+    g.select(".c-time").text(time);
     g.select("title").remove();
-    g.append("title").text(`event #${ev.id}, ${label}, ${ev.valText}, event time ${hms(ev.et).slice(0, 8)}`);
+    g.append("title").text(`${title}, ${ev.valText}, ${time}`);
+  }
+
+  /* A state card: what an operator keeps in memory for one key. Same size as a data card, but hollow.
+     rows = [{ l: label, r: number }], at most two. */
+  function stateCard(layer, key, title) {
+    const { w, h } = CARD, x0 = -w / 2, y0 = -h / 2;
+    const g = layer.append("g").attr("class", "state");
+    g.append("rect").attr("class", "body").attr("x", x0).attr("y", y0).attr("width", w).attr("height", h).attr("rx", 12).style("stroke", keyColor(key));
+    g.append("rect").attr("class", "c-flash").attr("x", x0 - 3).attr("y", y0 - 3).attr("width", w + 6).attr("height", h + 6).attr("rx", 14);
+    g.append("text").attr("class", "s-title").attr("x", x0 + 12).attr("y", y0 + 20).style("fill", keyColor(key)).text(title);
+    [0, 1].forEach((i) => {
+      g.append("text").attr("class", `s-l s-l${i}`).attr("x", x0 + 12);
+      g.append("text").attr("class", `s-r s-r${i}`).attr("x", w / 2 - 12).attr("text-anchor", "end");
+    });
+    return g;
+  }
+  function setState(g, rows) {
+    const ys = rows.length > 1 ? [5, 25] : [14];
+    [0, 1].forEach((i) => {
+      const r = rows[i];
+      g.select(`.s-l${i}`).attr("y", ys[i] ?? 0).text(r ? r.l : "");
+      g.select(`.s-r${i}`).attr("y", ys[i] ?? 0).text(r ? r.r : "");
+    });
   }
   function flash(g) {
     g.select(".c-flash").interrupt().style("opacity", 1).transition().duration(700).style("opacity", 0);
@@ -39,7 +64,7 @@ const Lab = (() => {
 
   function sqlHtml(sql) {
     const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    return esc(sql).replace(/\b(SELECT|FROM|WHERE|GROUP BY|AS|EMIT|JOIN|ON|AND|tumble|hop)\b/g, '<span class="kw">$1</span>');
+    return esc(sql).replace(/\b(SELECT|FROM|WHERE|GROUP BY|AS|EMIT|PERIODIC|ON UPDATE|AFTER WINDOW CLOSE|WITH DELAY|JOIN|ON|AND)\b/g, '<span class="kw">$1</span>');
   }
 
   function start(ep) {
@@ -81,7 +106,7 @@ const Lab = (() => {
 
     load(ep.modes[0]);
     const sc = document.querySelector(".stage-scroll");
-    if (sc) sc.scrollLeft = (sc.scrollWidth - sc.clientWidth) / 2;   // on narrow screens, start centered on the operator
+    if (sc) sc.scrollLeft = sc.scrollWidth * (ep.focus ?? 0.5) - sc.clientWidth / 2;   // on narrow screens, start centered on the operator
     d3.timer((t) => {
       if (last == null) { last = t; return; }
       const dt = Math.min(0.05, (t - last) / 1000) * speed;
@@ -98,5 +123,5 @@ const Lab = (() => {
     return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   }
 
-  return { CARD, card, fill, flash, hms, keyColor, start, rng };
+  return { CARD, card, fill, flash, stateCard, setState, hms, keyColor, start, rng };
 })();

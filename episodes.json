@@ -16,7 +16,8 @@
     "title": "Streaming Aggregation Lab",
     "h1": "Streaming aggregation",
     "lede": "Aggregation is where a stream query starts to remember. Watch state build up in a hash table, see watermarks decide when a window is final, and see a checkpoint carry that state across a crash.",
-    "description": "Animated explainer of Proton global and windowed aggregation, watermarks, emit policies, late events and checkpoints."
+    "description": "Animated explainer of Proton global and windowed aggregation, watermarks, emit policies, late events and checkpoints.",
+    "shell": "lab"
   },
   {
     "num": 3,
