@@ -5,9 +5,7 @@
     "name": "Stateless transform",
     "title": "Stateless Stream Transform",
     "h1": "Stateless transformation",
-    "lede": "The simplest streaming query: events flow in from the left, an operator handles each one on its own, results flow out to the right. It keeps running until you press Pause.",
-    "description": "Animated explainer of how Proton streams events through stateless filter and expression operators.",
-    "shell": "lab"
+    "description": "Animated explainer of how Proton streams events through stateless filter and expression operators."
   },
   {
     "num": 2,
@@ -15,9 +13,7 @@
     "name": "Streaming aggregation",
     "title": "Streaming Aggregation Lab",
     "h1": "Streaming aggregation",
-    "lede": "Aggregation is where a stream query starts to remember. Watch state build up in a hash table, see watermarks decide when a window is final, and see a checkpoint carry that state across a crash.",
-    "description": "Animated explainer of Proton global and windowed aggregation, watermarks, emit policies, late events and checkpoints.",
-    "shell": "lab"
+    "description": "Animated explainer of Proton global and windowed aggregation, watermarks, emit policies and late events."
   },
   {
     "num": 3,
@@ -25,7 +21,6 @@
     "name": "Streaming join",
     "title": "Streaming Join Lab",
     "h1": "Streaming join",
-    "lede": "A join matches events from two inputs. Which side keeps a hash table, and for how long, decides whether the join is cheap or grows without bound.",
-    "description": "Animated explainer of Proton enrichment and bidirectional joins, range joins and aligned checkpoints."
+    "description": "Animated explainer of Proton streaming joins: latest join, bidirectional join and range join."
   }
 ]

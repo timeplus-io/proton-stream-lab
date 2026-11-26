@@ -63,13 +63,15 @@ footer .here { font-weight: 700; color: var(--fg); }
 .sl .fade-stop-1 { stop-color: var(--panel); stop-opacity: 0; }
 .sl .op { fill: var(--panel-2); stroke: var(--line); stroke-width: 1.5; transition: stroke .25s; }
 .sl .op.busy { stroke: var(--accent); }
+.sl .op.failed { stroke: var(--danger); }
+.sl .op-rule.failed { fill: var(--danger); }
 .sl .op-rule { font: 600 13px var(--font-mono); fill: var(--fg); text-anchor: middle; }
 .sl .clock { font: 600 15px var(--font-mono); fill: var(--accent); text-anchor: middle; font-variant-numeric: tabular-nums; }
 .sl .card text { fill: var(--on-key); font-variant-numeric: tabular-nums; }
 .sl .card .c-id { font: 600 11px var(--font-body); opacity: .92; }
 .sl .card .c-val { font: 700 19px var(--font-body); letter-spacing: -0.01em; }
 .sl .card .c-time { font: 11px var(--font-mono); opacity: .92; }
-.sl .card.dropped rect.body { fill: var(--late) !important; }
+.sl .card.dropped .body { fill: var(--late) !important; }
 .sl .card .c-flash { fill: none; stroke: var(--accent); stroke-width: 2.5; opacity: 0; }
 .sl .axis-line { stroke: var(--line); stroke-width: 1; }
 .sl .axis .tk line { stroke: var(--line); stroke-width: 1; }
@@ -77,6 +79,8 @@ footer .here { font-weight: 700; color: var(--fg); }
 .sl .now-mark { fill: var(--accent); }
 .note code { font: 13px var(--font-mono); background: var(--panel-2); padding: 1px 5px; border-radius: 4px; color: var(--fg); }
 .lg-sw.state { background: none; border: 2px solid var(--muted); }
+.lg-sw.round { background: var(--muted); border-radius: 5px; }
+.lg-sw.square { background: var(--muted); border-radius: 1px; }
 .sl .state rect.body { fill: var(--panel); stroke-width: 2; }
 .sl .state .c-flash { fill: none; stroke: var(--accent); stroke-width: 2.5; opacity: 0; }
 .sl .state .s-title { font: 600 11px var(--font-body); }
