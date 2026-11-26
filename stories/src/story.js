@@ -1,13 +1,17 @@
-/* Stream Stories, shared kit (needs three.js r128 as the global THREE).
-   One diorama seen from a fixed isometric camera: flat colors, thin ink outlines, soft shadows.
+/* Stream Stories, shared kit: one hand-drawn sheet in plain SVG, no libraries.
+   Everything is drawn twice, the way a marker sketch is made: a soft wash of colour with paper tooth in it,
+   then a thin ink line that bows a little and runs past its corners. The scene is isometric but flat:
+   P(x, y, z) turns a place in the room into a point on the sheet. People are small paper dolls that face the reader.
    An episode supplies scenes, init(kit, scene) and tick(dt, now); the story runs until the reader presses Pause. */
 const Story = (() => {
-  const INK = 0x3b3632;
-  const C = {
-    floor: 0xe9e1d0, base: 0xb9a07a, wall: 0xf5f0e6, belt: 0x5f5b58, slat: 0x77726d, frame: 0xa9b1b5, leg: 0x7c858b,
-    wood: 0xd3ab78, woodDark: 0xb58c5a, white: 0xfbf8f1, dark: 0x4a4541, glass: 0xbfd6dc,
-    a: 0xd9793b, b: 0x4ba39b, c: 0x9270c4, red: 0xc4604f, yellow: 0xe3b64f, blue: 0x5e7fa8, green: 0x7fa56b,
-    skin: [0xe9b994, 0xc98f6b, 0x8e5b3f], hair: [0x2e2622, 0x5a3a26, 0x8f8a84],
+  const NS = "http://www.w3.org/2000/svg";
+  const W = 1400, H = 800;
+  const INK = "#3a3531";
+  const PAL = {
+    paper: "#faf5ea", floor: "#f1e7d2", wall: "#f6eedd", wood: "#dcbd90", woodDark: "#c19f72", base: "#c9aa7f",
+    steel: "#c3c8c9", belt: "#8f8881", dark: "#4f4944", glass: "#bfd6d8", white: "#fefbf3",
+    a: "#e59a62", b: "#72bbb0", c: "#ac92d6", red: "#d67c6c", yellow: "#ecc96e", blue: "#86a3c6", green: "#9dbb88", pink: "#efb9b3",
+    skin: ["#f3ceac", "#dca97f", "#b07a57"], hair: ["#3f332d", "#7d4d2e", "#a59e95"],
   };
   const BASE = 12 * 3600;
   const hms = (t) => {
@@ -18,203 +22,191 @@ const Story = (() => {
     let a = seed >>> 0;
     return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   }
+  let rand = rng(1);
+  const f = (n) => Math.round(n * 10) / 10;
+  function mix(a, b, t) {
+    const p = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)), A = p(a), B = p(b);
+    return "#" + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, "0")).join("");
+  }
+  const lighter = (c, t = 0.4) => mix(c, "#fffaf0", t), darker = (c, t = 0.2) => mix(c, "#7a6753", t);
 
-  /* ----- drawing: every solid is a flat color with an ink outline ----- */
-  const mats = new Map();
-  const mat = (color) => { if (!mats.has(color)) mats.set(color, new THREE.MeshLambertMaterial({ color })); return mats.get(color); };
-  const inkMat = new THREE.LineBasicMaterial({ color: INK });
-  function solid(geo, color, o = {}) {
-    const m = new THREE.Mesh(geo, mat(color));
-    m.castShadow = o.cast !== false; m.receiveShadow = true;
-    if (o.ink !== false) m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, o.angle ?? 30), inkMat));
-    return m;
-  }
-  /* a box that stands on y = 0 */
-  function box(w, h, d, color, o) { const g = new THREE.BoxGeometry(w, h, d); g.translate(0, h / 2, 0); return solid(g, color, o); }
-  /* a cylinder (or cone) that stands on y = 0 */
-  /* Round things get their outline from a slightly larger ink shell seen from behind. */
-  const hullMat = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide });
-  const LINE = 0.022;
-  function cyl(rt, rb, h, color, o = {}) {
-    const g = new THREE.CylinderGeometry(rt, rb, h, o.seg ?? 14); g.translate(0, h / 2, 0);
-    const m = solid(g, color, o);
-    if (o.ink !== false) { const hg = new THREE.CylinderGeometry(rt + LINE, rb + LINE, h + LINE * 2, o.seg ?? 14); hg.translate(0, h / 2, 0); m.add(new THREE.Mesh(hg, hullMat)); }
-    return m;
-  }
-  function ball(r, color, o = {}) {
-    const m = solid(new THREE.SphereGeometry(r, o.seg ?? 18, o.rings ?? 12), color, { ...o, ink: false });
-    if (o.ink !== false) m.add(new THREE.Mesh(new THREE.SphereGeometry(r + LINE, o.seg ?? 18, o.rings ?? 12), hullMat));
-    return m;
-  }
-  const at = (obj, x, y, z) => { obj.position.set(x, y, z); return obj; };
-  function group(...kids) { const g = new THREE.Group(); kids.forEach((k) => g.add(k)); return g; }
+  /* ----- the isometric room: x runs down and right, y down and left, z up ----- */
+  const CS = Math.cos(Math.PI / 6), SN = 0.5, U = 52, OX = 551, OY = 236;
+  const P = (x, y, z = 0) => [OX + (x - y) * CS * U, OY + (x + y) * SN * U - z * U];
 
-  /* ----- props ----- */
-  /* The floor slab: a light top on a darker base, like a slice cut out of a building. Its top is y = 0. */
-  function slab(w, d) {
-    return group(at(box(w, 0.3, d, C.floor), 0, -0.3, 0), at(box(w, 0.55, d, C.base), 0, -0.85, 0));
+  /* ----- ink: every straight edge is ruled by hand, so it bows a little and overshoots ----- */
+  function stroke(a, b, o = {}) {
+    const over = o.over ?? 2.4, amp = o.amp ?? 0.9, dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+    const o1 = over * rand(), o2 = over * rand(), bow = (rand() - 0.5) * 2 * amp * Math.min(1, L / 70);
+    const A = [a[0] - ux * o1, a[1] - uy * o1], B = [b[0] + ux * o2, b[1] + uy * o2];
+    return `M${f(A[0])} ${f(A[1])}Q${f((A[0] + B[0]) / 2 - uy * bow)} ${f((A[1] + B[1]) / 2 + ux * bow)} ${f(B[0])} ${f(B[1])}`;
   }
-  /* Two walls of a cut-away room: the back wall and the left wall, with an opening where a line comes through. */
-  function walls(w, d, h, hatch) {
-    const t = 0.28, g = new THREE.Group();
-    g.add(at(box(w + t, h, t, C.wall), -t / 2, 0, -d / 2 - t / 2));
-    const x = -w / 2 - t / 2;
-    if (!hatch) g.add(at(box(t, h, d, C.wall), x, 0, 0));
-    else {
-      const z0 = hatch.z - hatch.w / 2, z1 = hatch.z + hatch.w / 2;
-      g.add(at(box(t, h, z0 + d / 2, C.wall), x, 0, (z0 - d / 2) / 2));
-      g.add(at(box(t, h, d / 2 - z1, C.wall), x, 0, (z1 + d / 2) / 2));
-      g.add(at(box(t, hatch.y0, hatch.w, C.wall), x, 0, hatch.z));
-      g.add(at(box(t, h - hatch.y1, hatch.w, C.wall), x, hatch.y1, hatch.z));
-      g.add(at(box(0.9, hatch.y1 - hatch.y0 + 0.5, hatch.w + 0.5, C.dark, { ink: false }), x - 0.6, hatch.y0 - 0.25, hatch.z));   // the dark room behind
+  const attr = (o) => ` stroke-width="${o.w ?? 1.25}"${o.col ? ` style="stroke:${o.col}"` : ""}${o.op ? ` opacity="${o.op}"` : ""}`;
+  const edges = (pairs, o = {}) => `<path class="ink" d="${pairs.map(([a, b]) => stroke(a, b, o)).join("")}"${attr(o)}/>`;
+  const loop = (pts, o) => edges(pts.map((p, i) => [p, pts[(i + 1) % pts.length]]), o);
+  /* a smooth line through points, for round things and leader lines */
+  function curve(pts, closed = false) {
+    const n = pts.length, g = (i) => (closed ? pts[(i + n) % n] : pts[Math.max(0, Math.min(n - 1, i))]);
+    let d = `M${f(pts[0][0])} ${f(pts[0][1])}`;
+    for (let i = 0; i < (closed ? n : n - 1); i++) {
+      const p0 = g(i - 1), p1 = g(i), p2 = g(i + 1), p3 = g(i + 2);
+      d += `C${f(p1[0] + (p2[0] - p0[0]) / 6)} ${f(p1[1] + (p2[1] - p0[1]) / 6)} ${f(p2[0] - (p3[0] - p1[0]) / 6)} ${f(p2[1] - (p3[1] - p1[1]) / 6)} ${f(p2[0])} ${f(p2[1])}`;
     }
-    return g;
+    return d + (closed ? "Z" : "");
   }
-  /* A conveyor from x0 to x1 at depth z. Its slats move with the items, so the line visibly runs. */
-  function belt(x0, x1, z, speed, o = {}) {
-    const top = o.top ?? 1.05, w = o.w ?? 1.15, L = x1 - x0, g = new THREE.Group();
-    g.add(at(box(L, 0.2, w + 0.16, C.frame), (x0 + x1) / 2, top - 0.26, z));
-    g.add(at(box(L, 0.06, w, C.belt, { ink: false }), (x0 + x1) / 2, top - 0.06, z));
-    for (let x = x0 + 0.7; x < x1; x += 2.2) [-1, 1].forEach((s) => g.add(at(box(0.14, top - 0.26, 0.14, C.leg), x, 0, z + s * (w / 2 - 0.05))));
-    g.add(at(cyl(0.16, 0.16, w + 0.16, C.leg, { seg: 10 }), x1, top - 0.16, z - (w + 0.16) / 2).rotateX(Math.PI / 2));
-    const gap = 0.55, slats = [];
-    for (let i = 0; i < Math.floor(L / gap); i++) { const s = box(0.05, 0.012, w - 0.1, C.slat, { ink: false, cast: false }); s.position.set(0, top, z); g.add(s); slats.push(s); }
-    const n = slats.length;
-    return { group: g, top, z, x0, x1, update(now) { slats.forEach((s, i) => { s.position.x = x0 + (((i * gap + now * speed) % (n * gap)) + n * gap) % (n * gap); }); } };
+  /* ----- wash: flat colour laid a touch off the line, with the paper showing through ----- */
+  const tooth = (d) => `<path d="${d}" fill="url(#tooth)"/>`;
+  function wash(pts, col, o = {}) {
+    const j = o.j ?? 0.9, dx = (rand() - 0.5) * 1.4, dy = (rand() - 0.5) * 1.4;
+    const d = "M" + pts.map((p) => f(p[0] + dx + (rand() - 0.5) * j) + " " + f(p[1] + dy + (rand() - 0.5) * j)).join("L") + "Z";
+    return `<path d="${d}" fill="${col}"/>` + tooth(d);
   }
-  /* A small person. look: 0..2 picks skin and hair; coat is the color of the work coat. */
-  function person(o = {}) {
-    const look = o.look ?? 0, g = new THREE.Group(), body = new THREE.Group();
-    body.add(cyl(0.2, 0.31, 0.78, o.coat ?? C.blue));
-    body.add(at(cyl(0.32, 0.32, 0.06, C.dark, { ink: false }), 0, 0, 0));
-    const head = at(ball(0.2, C.skin[look]), 0, 0.98, 0);
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.215, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.45), mat(C.hair[look]));
-    hair.position.set(0, 0.99, -0.02); hair.rotation.x = -0.5;
-    const hat = at(cyl(0.17, 0.15, 0.2, C.white), 0, 1.13, 0);
-    const eyes = [-1, 1].map((s) => at(ball(0.022, C.dark, { ink: false, cast: false }), s * 0.075, 1.0, 0.185));
-    const arms = [-1, 1].map((s) => { const a = new THREE.Group(); a.position.set(s * 0.25, 0.7, 0); a.add(at(box(0.1, 0.36, 0.1, o.coat ?? C.blue), 0, -0.36, 0)); a.add(at(ball(0.065, C.skin[look], { ink: false }), 0, -0.4, 0)); body.add(a); return a; });
-    body.add(head, hair, ...eyes); if (o.hat !== false) body.add(hat);
-    g.add(body);
-    return { group: g, body, head, arms };
+  /* a shape given as path data: washed, then inked */
+  const shape = (d, col, w = 1.4) => `<path d="${d}" fill="${col}"/>${tooth(d)}<path class="ink" d="${d}" stroke-width="${w}"/>`;
+  const dot = (x, y, r, col, w = 1.2) => `<circle cx="${f(x)}" cy="${f(y)}" r="${r}" fill="${col}"${w ? ` class="ink-f" stroke-width="${w}"` : ""}/>`;
+  const shadow = (pts, op = 0.13) => `<path d="M${pts.map((p) => f(p[0]) + " " + f(p[1])).join("L")}Z" fill="#5c5247" opacity="${op}"/>`;
+
+  /* ----- solids ----- */
+  /* A box standing at (x, y, z), w along x, d along y, h high. col is the face that looks down and right. */
+  function box(x, y, z, w, d, h, col, o = {}) {
+    const t = [P(x, y, z + h), P(x + w, y, z + h), P(x + w, y + d, z + h), P(x, y + d, z + h)], b1 = P(x + w, y, z), b2 = P(x + w, y + d, z), b3 = P(x, y + d, z);
+    return wash(t, o.top ?? lighter(col)) + wash([t[1], t[2], b2, b1], col) + wash([t[3], t[2], b2, b3], o.side ?? darker(col))
+      + edges([[t[0], t[1]], [t[1], t[2]], [t[2], t[3]], [t[3], t[0]], [t[1], b1], [t[2], b2], [t[3], b3], [b1, b2], [b2, b3]], { w: o.w });
   }
-  /* A wall clock that faces +z. Its long hand goes round once a minute. */
-  function clock(r = 0.62) {
-    const g = new THREE.Group();
-    const face = cyl(r, r, 0.08, C.white, { seg: 28 }); face.rotation.x = Math.PI / 2; g.add(face);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(r, 0.05, 8, 28), mat(C.dark)); rim.position.z = 0.08; g.add(rim);
-    for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2, t = at(box(0.03, i % 3 === 0 ? 0.12 : 0.06, 0.01, C.dark, { ink: false, cast: false }), 0, 0, 0); t.position.set(Math.sin(a) * r * 0.8, Math.cos(a) * r * 0.8 - (i % 3 === 0 ? 0.06 : 0.03), 0.09); g.add(t); }
-    const hand = (len, w, color) => { const p = new THREE.Group(); p.position.z = 0.1; p.add(box(w, len, 0.012, color, { ink: false, cast: false })); g.add(p); return p; };
-    const minute = hand(r * 0.5, 0.05, C.dark), second = hand(r * 0.78, 0.03, C.red);
-    g.add(at(ball(0.045, C.dark, { ink: false, cast: false }), 0, 0, 0.11));
-    return { group: g, update(now) { second.rotation.z = -(now % 60) / 60 * Math.PI * 2; minute.rotation.z = -((now / 60) % 60) / 60 * Math.PI * 2; } };
+  /* An open box you can drop things into. under goes behind what falls in, over goes in front of it. */
+  function crate(x, y, z, w, d, h, col) {
+    const T = (px, py) => P(px, py, z + h), B = (px, py) => P(px, py, z), in1 = darker(col, 0.45), in2 = darker(col, 0.6);
+    const under = wash([B(x, y), B(x + w, y), B(x + w, y + d), B(x, y + d)], darker(col, 0.75)) + wash([T(x, y), T(x, y + d), B(x, y + d), B(x, y)], in1) + wash([T(x, y), T(x + w, y), B(x + w, y), B(x, y)], in2)
+      + edges([[T(x, y), T(x + w, y)], [T(x, y), T(x, y + d)], [T(x, y), B(x, y)]], { w: 1.1 });
+    const over = wash([T(x + w, y), T(x + w, y + d), B(x + w, y + d), B(x + w, y)], col) + wash([T(x, y + d), T(x + w, y + d), B(x + w, y + d), B(x, y + d)], darker(col))
+      + edges([[T(x + w, y), T(x + w, y + d)], [T(x + w, y + d), T(x, y + d)], [T(x + w, y), B(x + w, y)], [T(x + w, y + d), B(x + w, y + d)], [T(x, y + d), B(x, y + d)], [B(x + w, y), B(x + w, y + d)], [B(x + w, y + d), B(x, y + d)]]);
+    return { under, over };
   }
-  /* An open wooden crate: a floor and four low sides. */
-  function crate(w, h, d, color = C.wood) {
-    const t = 0.07, g = new THREE.Group();
-    g.add(box(w, t, d, C.woodDark));
-    [[0, -d / 2 + t / 2, w, t], [0, d / 2 - t / 2, w, t], [-w / 2 + t / 2, 0, t, d], [w / 2 - t / 2, 0, t, d]].forEach(([x, z, sw, sd]) => g.add(at(box(sw, h, sd, color), x, 0, z)));
-    return g;
+  /* An upright cylinder: a can, a jar, a roll. */
+  function cyl(x, y, z, r, h, col, o = {}) {
+    const c0 = P(x, y, z), c1 = P(x, y, z + h), rx = f(Math.SQRT2 * CS * r * U), ry = f(Math.SQRT2 * SN * r * U);
+    const body = `M${f(c1[0] - rx)} ${f(c1[1])}L${f(c0[0] - rx)} ${f(c0[1])}A${rx} ${ry} 0 0 0 ${f(c0[0] + rx)} ${f(c0[1])}L${f(c1[0] + rx)} ${f(c1[1])}A${rx} ${ry} 0 0 1 ${f(c1[0] - rx)} ${f(c1[1])}Z`;
+    const top = `M${f(c1[0] - rx)} ${f(c1[1])}A${rx} ${ry} 0 1 0 ${f(c1[0] + rx)} ${f(c1[1])}A${rx} ${ry} 0 1 0 ${f(c1[0] - rx)} ${f(c1[1])}Z`;
+    return shape(body, col, o.w ?? 1.2) + shape(top, o.top ?? lighter(col), o.w ?? 1.2);
   }
 
-  /* ----- the stage: renderer, camera, labels ----- */
-  let renderer, scene, camera, world, stageEl, leaders, tags = [], fit = null, raw = null;
-  const AZ = Math.PI / 4, EL = (30 * Math.PI) / 180;
-  const DIR = new THREE.Vector3(Math.cos(EL) * Math.sin(AZ), Math.sin(EL), Math.cos(EL) * Math.cos(AZ));
+  /* ----- people: flat paper dolls, feet at (0, 0), about 86 tall with the hat ----- */
+  function doll(o = {}) {
+    const look = o.look ?? 0, skin = PAL.skin[look], hair = PAL.hair[look], coat = o.coat ?? PAL.blue;
+    let h = `<ellipse cx="0" cy="1.5" rx="20" ry="6.5" fill="#8097b8" opacity=".5"/>`;
+    [-1, 1].forEach((s) => {
+      h += shape(`M${s * 6 - 3.2} -13L${s * 6 - 3.2} -3L${s * 6 + 3.2} -3L${s * 6 + 3.2} -13Z`, "#66738c", 1.2);
+      h += shape(`M${s * 6 - 4.4} -3.4Q${s * 6 - 5} 0.8 ${s * 6} 0.8Q${s * 6 + 5} 0.8 ${s * 6 + 4.4} -3.4Z`, "#9a6b4c", 1.2);
+    });
+    h += shape("M-8.5 -45C-13.5 -45 -15 -40 -16 -34L-20 -15C-21.5 -9 -17 -8.5 -12 -8.5L12 -8.5C17 -8.5 21.5 -9 20 -15L16 -34C15 -40 13.5 -45 8.5 -45Z", coat, 1.5);
+    if (o.apron !== false) h += shape("M-6.5 -39L6.5 -39L10.5 -11.5L-10.5 -11.5Z", PAL.white, 1.1);
+    h += shape("M-13.6 -57A13.6 13.6 0 1 0 13.6 -57A13.6 13.6 0 1 0 -13.6 -57Z", skin, 1.5);
+    h += `<path d="M-13.4 -59C-14 -66 -8 -70.5 0 -70.5C8 -70.5 14 -66 13.4 -59C9 -62.5 4 -63.5 0 -63.5C-4 -63.5 -9 -62.5 -13.4 -59Z" fill="${hair}"/>`;
+    h += dot(-5, -55.5, 1.7, INK, 0) + dot(5, -55.5, 1.7, INK, 0);
+    h += `<circle cx="-8.6" cy="-51.4" r="3.1" fill="#ee9f97" opacity=".6"/><circle cx="8.6" cy="-51.4" r="3.1" fill="#ee9f97" opacity=".6"/>`;
+    h += `<path class="ink" d="M-3 -50.2Q0 -47.6 3 -50.2" stroke-width="1.2"/>`;
+    if (o.hat !== false) {
+      h += shape("M-10.5 -67C-17.5 -70 -16 -82.5 -6.5 -80.5C-4 -87 6 -87 8 -80.5C16.5 -82.5 17.5 -70 10.5 -67Z", PAL.white, 1.4);
+      h += shape("M-11 -70L11 -70L11 -64.5L-11 -64.5Z", PAL.white, 1.2);
+    }
+    return h;
+  }
+  /* One arm, hanging from (0, 0). The episode turns it about the shoulder. tool: "paddle" for a small wooden pusher. */
+  function arm(o = {}) {
+    let h = "";
+    if (o.tool === "paddle") h += `<path class="ink" d="M0 22L0 41" stroke-width="2.2" style="stroke:#8a6a48"/>` + shape("M-6.5 38L6.5 38L6.5 48L-6.5 48Z", PAL.wood, 1.2);
+    h += shape("M-3.8 0L-3.8 20A3.8 3.8 0 0 0 3.8 20L3.8 0A3.8 3.8 0 0 0 -3.8 0Z", o.coat ?? PAL.blue, 1.3);
+    return h + dot(0, 23, 4.1, PAL.skin[o.look ?? 0], 1.2);
+  }
+  const SHOULDER = [[-13, -39], [13, -39]];   // where the arms hang from, before the doll is scaled
 
+  /* ----- the sheet ----- */
+  let stageEl, back, live, labelLayer = null, labels = [], tight = null;
+  /* Paper tooth: a small tile of soft noise, made once. Some patches dry lighter and some pool darker, as marker does on paper. */
+  function toothTile() {
+    const n = 256, c = document.createElement("canvas"); c.width = c.height = n;
+    const g = c.getContext("2d"), img = g.createImageData(n, n), r = rng(11);
+    const lattice = (m) => {
+      const a = new Float32Array(m * m).map(() => r()), v = (i, j) => a[(((j % m) + m) % m) * m + (((i % m) + m) % m)];
+      return (x, y) => { const fx = (x / n) * m, fy = (y / n) * m, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0, sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty); return (v(x0, y0) * (1 - sx) + v(x0 + 1, y0) * sx) * (1 - sy) + (v(x0, y0 + 1) * (1 - sx) + v(x0 + 1, y0 + 1) * sx) * sy; };
+    };
+    const n1 = lattice(5), n2 = lattice(12), n3 = lattice(40);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const v = 0.5 * n1(x, y) + 0.3 * n2(x, y) + 0.2 * n3(x, y), grain = r(), i = (y * n + x) * 4, pale = v < 0.44;
+      const a = pale ? (0.44 - v) * 0.75 : (v - 0.52) * 0.42;
+      img.data[i] = pale ? 255 : 96; img.data[i + 1] = pale ? 250 : 76; img.data[i + 2] = pale ? 238 : 60;
+      img.data[i + 3] = Math.max(0, Math.min(1, a + (grain > 0.92 ? 0.035 : 0))) * 255;
+    }
+    g.putImageData(img, 0, 0);
+    return c.toDataURL("image/png");
+  }
   function setup(el) {
     stageEl = el;
-    try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); } catch (e) { renderer = null; }
-    if (!renderer) { el.innerHTML = '<p class="nogl">This story needs WebGL, which is not available in this browser.</p>'; return false; }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    el.appendChild(renderer.domElement);
-    renderer.domElement.setAttribute("role", "img");
-    renderer.domElement.setAttribute("aria-label", "Animated factory diorama");
-    leaders = document.createElementNS("http://www.w3.org/2000/svg", "svg"); leaders.setAttribute("class", "leaders"); el.appendChild(leaders);
-    scene = new THREE.Scene();
-    scene.add(new THREE.AmbientLight(0xffffff, 0.36));
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xd9cdb6, 0.45));
-    const sun = new THREE.DirectionalLight(0xfff4e0, 0.34);
-    sun.position.set(6, 14, 9); sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    Object.assign(sun.shadow.camera, { left: -13, right: 13, top: 10, bottom: -10, near: 1, far: 40 });
-    sun.shadow.bias = -0.0015; sun.shadow.radius = 3;
-    scene.add(sun);
-    camera = new THREE.OrthographicCamera(-10, 10, 6, -6, 0.1, 100);
-    world = new THREE.Group(); scene.add(world);
+    const mk = (cls) => { const s = document.createElementNS(NS, "svg"); s.setAttribute("class", cls); s.setAttribute("viewBox", `0 0 ${W} ${H}`); el.appendChild(s); return s; };
+    back = mk("back"); live = mk("live");
+    back.setAttribute("role", "img"); back.setAttribute("aria-label", "Hand-drawn factory scene");
     window.addEventListener("resize", layout);
-    return true;
   }
-  /* Frame the diorama: box = [x0, x1, y0, y1, z0, z1] in world units, padX = empty paper left and right for the labels. */
-  function frame(box, padX = 0.24, padY = 0.05) {
-    const [x0, x1, y0, y1, z0, z1] = box, c = new THREE.Vector3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
-    camera.position.copy(c).addScaledVector(DIR, 40); camera.up.set(0, 1, 0); camera.lookAt(c); camera.updateMatrixWorld();
-    const inv = camera.matrixWorldInverse; let l = Infinity, r = -Infinity, b = Infinity, t = -Infinity;
-    [x0, x1].forEach((x) => [y0, y1].forEach((y) => [z0, z1].forEach((z) => { const v = new THREE.Vector3(x, y, z).applyMatrix4(inv); l = Math.min(l, v.x); r = Math.max(r, v.x); b = Math.min(b, v.y); t = Math.max(t, v.y); })));
-    raw = { l, r, b, t, padX, padY };
-    layout();
-  }
-  /* On a wide page the diorama leaves paper on both sides for the labels. On a phone it fills the width and the labels step aside. */
+  /* On a wide page the whole sheet shows, labels in the margins. On a phone the sheet closes in on the room and the labels step aside. */
   function layout() {
-    if (!renderer || !raw) return;
-    const compact = stageEl.clientWidth < 720, w0 = raw.r - raw.l, h0 = raw.t - raw.b, px = compact ? 0.02 : raw.padX;
-    stageEl.classList.toggle("compact", compact);
-    fit = { l: raw.l - w0 * px, r: raw.r + w0 * px, b: raw.b - h0 * raw.padY, t: raw.t + h0 * raw.padY };
-    Object.assign(camera, { left: fit.l, right: fit.r, top: fit.t, bottom: fit.b }); camera.updateProjectionMatrix();
-    const w = stageEl.clientWidth, h = Math.round(w * (fit.t - fit.b) / (fit.r - fit.l));
-    renderer.setSize(w, h, false); renderer.domElement.style.height = h + "px";
-    placeTags();
-    if (scene) renderer.render(scene, camera);
+    const compact = stageEl.clientWidth < 720 && tight, v = compact ? tight : [0, 0, W, H];
+    stageEl.classList.toggle("compact", !!compact);
+    [back, live].forEach((s) => s.setAttribute("viewBox", v.join(" ")));
+    stageEl.style.aspectRatio = `${v[2]} / ${v[3]}`;
   }
-  const toScreen = (p) => { const v = new THREE.Vector3(p[0], p[1], p[2]).project(camera), el = renderer.domElement; return [(v.x + 1) / 2 * el.clientWidth, (1 - v.y) / 2 * el.clientHeight]; };
-  /* Labels in the paper margin, each tied by a thin line to the thing it names.
-     list = [{ title, sub, at: [x, y, z], side: "left" | "right", y: fraction of the stage height }] */
-  function setTags(list) {
-    tags.forEach((t) => t.el.remove());
-    tags = list.map((t) => {
-      const el = document.createElement("div"); el.className = "tag " + t.side;
-      el.innerHTML = `<b>${t.title}</b><span>${t.sub}</span>`; stageEl.appendChild(el);
-      return { ...t, el };
+  const g = (parent, html = "", attrs = "") => { parent.insertAdjacentHTML("beforeend", `<g ${attrs}>${html}</g>`); return parent.lastElementChild; };
+  /* the paper: a faint isometric grid and a few pencil crosses */
+  function paper() {
+    let d = "";
+    for (let k = -30; k <= 60; k++) { const a = P(k * 2, -40), b = P(k * 2, 60), c = P(-40, k * 2), e = P(60, k * 2); d += `M${f(a[0])} ${f(a[1])}L${f(b[0])} ${f(b[1])}M${f(c[0])} ${f(c[1])}L${f(e[0])} ${f(e[1])}`; }
+    let h = `<path d="${d}" stroke="${INK}" stroke-width=".7" opacity=".055" fill="none"/>`;
+    [[120, 560], [1296, 500], [236, 742], [1160, 70], [1040, 770], [300, 84]].forEach(([x, y]) => { h += `<path class="ink" d="M${x - 6} ${y}L${x + 6} ${y}M${x} ${y - 6}L${x} ${y + 6}" stroke-width=".9" opacity=".55"/>`; });
+    return h;
+  }
+  /* Margin notes. list = [{ title, note, x, y, side: "start" | "end", to: [sheet x, sheet y] }] */
+  function setLabels(list) {
+    labels = list; if (!labelLayer) return;
+    labelLayer.innerHTML = list.map((l, i) => `<text class="lab-t" data-i="${i}" x="${l.x}" y="${l.y}" text-anchor="${l.side}">${l.title}</text><text class="lab-n" x="${l.x}" y="${l.y + 22}" text-anchor="${l.side}">${l.note}</text>`).join("");
+    let h = ""; rand = rng(5);
+    labelLayer.querySelectorAll(".lab-t").forEach((t) => {
+      const l = list[+t.dataset.i], w = t.getComputedTextLength(), wn = t.nextElementSibling.getComputedTextLength(), s = l.side === "start" ? 1 : -1;
+      const a = [l.x + s * (w + 13), l.y - 7], b = [a[0] + s * Math.max(30, wn - w + 8), a[1] + (rand() - 0.5) * 2], m = [(b[0] + l.to[0]) / 2 + (rand() - 0.5) * 5, (b[1] + l.to[1]) / 2 + (rand() - 0.5) * 5];
+      h += `<path class="lead" d="M${f(a[0])} ${f(a[1])}L${f(b[0])} ${f(b[1])}Q${f(m[0])} ${f(m[1])} ${f(l.to[0])} ${f(l.to[1])}"/>`;
+      h += `<circle class="ring" cx="${f(a[0])}" cy="${f(a[1])}" r="3"/><circle class="ring" cx="${f(l.to[0])}" cy="${f(l.to[1])}" r="2.6"/>`;
     });
-    placeTags();
-  }
-  function placeTags() {
-    if (!renderer) return;
-    const W = renderer.domElement.clientWidth, H = renderer.domElement.clientHeight; let d = "";
-    tags.forEach((t) => {
-      t.el.style.top = t.y * H + "px";
-      if (t.side === "left") { t.el.style.left = "4px"; t.el.style.right = ""; } else { t.el.style.right = "4px"; t.el.style.left = ""; }
-      const bw = t.el.querySelector("b").getBoundingClientRect().width, r0 = stageEl.getBoundingClientRect(), rb = t.el.querySelector("b").getBoundingClientRect();
-      const sy = rb.top - r0.top + rb.height / 2, sx = t.side === "left" ? rb.left - r0.left + bw + 12 : rb.left - r0.left - 12;
-      const [ax, ay] = toScreen(t.at), ex = sx + (t.side === "left" ? 26 : -26);
-      d += `<path d="M${sx},${sy} H${ex} L${ax},${ay}"/><circle cx="${sx}" cy="${sy}" r="2.6"/><circle cx="${ax}" cy="${ay}" r="2.2"/>`;
-    });
-    leaders.innerHTML = d;
-  }
-
-  /* Take an object off the stage and free what it drew with. */
-  function drop(obj) {
-    obj.traverse((n) => { if (n.geometry) n.geometry.dispose(); });
-    if (obj.parent) obj.parent.remove(obj);
+    labelLayer.insertAdjacentHTML("afterbegin", h);
   }
 
   function start(ep) {
-    if (!setup(document.querySelector("#stage"))) return;
+    setup(document.querySelector("#stage"));
     let sceneDef = ep.scenes[0], paused = false, now = 0, last = null;
     const playBtn = document.querySelector("#play"), timeEl = document.querySelector("#time"), statusEl = document.querySelector("#status");
-    const kit = { THREE, C, world, box, cyl, ball, at, group, solid, drop, slab, walls, belt, person, clock, crate, frame, setTags, rng };
+    const tile = toothTile();
+    const kit = {
+      PAL, INK, P, U, CS, SN, rng, mix, lighter, darker, f,
+      edges, loop, curve, wash, shape, dot, shadow, box, crate, cyl, doll, arm, SHOULDER, setLabels,
+      /* draw into the still part of the sheet, behind everything that moves */
+      still: (html) => back.insertAdjacentHTML("beforeend", html),
+      /* a new layer in the moving part of the sheet; layers stack in the order they are made */
+      layer: (html = "", attrs = "") => g(live, html, attrs),
+      node: g,
+      labelLayer: () => { labelLayer = g(live, "", 'class="labels"'); setLabels(labels); return labelLayer; },
+      seed: (s) => { rand = rng(s); },
+      /* the part of the sheet a phone shows: [x, y, w, h] */
+      focus: (v) => { tight = v; layout(); },
+    };
     function load(s) {
-      sceneDef = s; now = 0;
+      sceneDef = s; now = 0; labelLayer = null; labels = []; rand = rng(3);
       document.querySelectorAll("#scenes button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.id === s.id ? "true" : "false"));
       document.querySelector("#story").innerHTML = s.story;
-      while (world.children.length) drop(world.children[0]);
+      back.innerHTML = `<defs><pattern id="tooth" patternUnits="userSpaceOnUse" width="256" height="256"><image href="${tile}" width="256" height="256"/></pattern></defs>` + paper();
+      live.innerHTML = "";
       ep.init(kit, s);
-      draw();
+      layout(); draw();
     }
     function draw() {
       timeEl.textContent = hms(now);
       if (ep.status) statusEl.textContent = ep.status();
-      renderer.render(scene, camera);
     }
     const seg = document.querySelector("#scenes");
     ep.scenes.forEach((s, i) => {
@@ -228,16 +220,16 @@ const Story = (() => {
     document.addEventListener("visibilitychange", () => { last = null; });
     load(sceneDef);
     if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) setPaused(true);
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeTags);
-    function loop(t) {
-      requestAnimationFrame(loop);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => setLabels(labels));
+    function frame(t) {
+      requestAnimationFrame(frame);
       if (last == null) { last = t; return; }
       const dt = Math.min(0.05, (t - last) / 1000); last = t;
       if (paused) return;
       now += dt; ep.tick(dt, now); draw();
     }
-    requestAnimationFrame(loop);
+    requestAnimationFrame(frame);
   }
 
-  return { start, C, hms, rng };
+  return { start, PAL, hms, rng };
 })();

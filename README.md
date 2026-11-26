@@ -15,8 +15,8 @@ Hosted previews (private claude.ai artifacts): [01](https://claude.ai/artifact/5
 
 ## Stream Stories: the same ideas for readers who are not engineers
 
-A second series tells the same ideas as a small factory, drawn with three.js as a cut-away diorama on paper.
-There is no SQL on these pages. The Stream Lab episodes above stay as they are, for engineers.
+A second series tells the same ideas as a small factory, drawn as a hand-made isometric sheet: marker washes with paper tooth, thin ink lines that run past their corners, paper-doll workers and labels in the margins.
+It is plain SVG with no libraries. There is no SQL on these pages. The Stream Lab episodes above stay as they are, for engineers.
 
 | In the story | In stream processing |
 |---|---|
@@ -32,7 +32,9 @@ There is no SQL on these pages. The Stream Lab episodes above stay as they are, 
 
 Planned: 02 the counter (a tally board is the state, a box per time slot is a window, a late candy misses its box), 03 two lines meet (joins).
 
-Rules for a story: one diorama seen from a fixed camera, the line runs left to right and until Pause, the same candies arrive in every scene and only the workers change, margin labels name only what the scene is about, each scene has one short caption that states the idea in plain words and gives the engineer's word last.
+Rules for a story: one room seen from a fixed isometric view, the line runs from the upper left to the lower right and until Pause, the same candies arrive in every scene and only the workers change, margin labels name only what the scene is about, each scene has one short caption that states the idea in plain words and gives the engineer's word last.
+
+The look follows the tradition of hand-drawn isometric explainer sheets, and April Zhu's Tinycharts was the reference for it. All drawing code in `stories/` is written for this repo; none of the Tinycharts kit is used or included.
 
 ## Design rules
 
@@ -53,7 +55,7 @@ Rules for a story: one diorama seen from a fixed camera, the line runs left to r
 
 ## Run it
 
-No build tools are needed to view a page: open `dist/<episode>.html` in a browser (it loads D3 or three.js and fonts from public CDNs).
+No build tools are needed to view a page: open `dist/<episode>.html` in a browser (the lab pages load D3 from a public CDN, and all pages load fonts from Google Fonts).
 
 To rebuild after editing sources:
 
@@ -70,8 +72,8 @@ src/lab.css         shared tokens and styles (light + dark)
 src/lab-shell.html  page template (title, tabs, legend, stage, SQL, caption)
 episodes/NN-*/episode.js   one file per episode: tabs, event generator, operator logic, rendering
 episodes.json       episode metadata
-stories/src/story.js          shared three.js kit: floor slab, walls, belt, worker, clock, margin labels, scene buttons
-stories/src/story.css         paper page, hand-lettered labels (light + dark)
+stories/src/story.js          shared SVG kit: isometric point, hand-ruled ink, marker wash, boxes, paper-doll workers, margin labels, scene buttons
+stories/src/story.css         the paper sheet, hand-lettered labels, page around it (light + dark)
 stories/src/story-shell.html  page template for a story
 stories/episodes/NN-*/episode.js   one file per story: scenes, candies, workers
 stories/stories.json          story metadata

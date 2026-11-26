@@ -11,106 +11,112 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Young+Serif&display=swap">
 <style>
 /* Stream Stories: the same ideas as the Stream Lab, told as a small factory for readers who are not engineers.
-   A paper page, a hand-lettered voice and one diorama. */
+   Layout: one sheet of cream paper lies on the page and holds the title, the clock time and the drawing; the buttons and the caption sit under it. */
 :root {
-  --paper: #F9F5EC; --grid: rgba(70, 62, 50, 0.06); --ink: #2B2826; --soft: #6F675C; --line: #8C8377;
-  --panel: #FFFDF7; --accent: #C4604F; --on-accent: #FFFDF7; --rail: #E7D7AC;
+  /* the page around the sheet follows the reader's theme */
+  --page: #E8DFCE; --text: #2B2826; --muted: #6A6257; --rule: #8C8377; --panel: #FBF7EE; --accent: #C4604F; --on-accent: #FFFDF7; --pressed: #2B2826; --on-pressed: #FAF5EA;
+  /* the sheet is paper: it looks the same in light and dark */
+  --paper: #FAF5EA; --ink: #2B2826; --pencil: #6F675C; --lead: #8C8377; --sheet-accent: #C4604F;
   --font-title: "Young Serif", Georgia, "Times New Roman", serif;
   --font-hand: "Patrick Hand", "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #1D1B18; --grid: rgba(240, 230, 210, 0.05); --ink: #F3ECDF; --soft: #B5AC9D; --line: #8C8377;
-    --panel: #26231F; --accent: #E0806E; --on-accent: #1D1B18; --rail: #5A5140; color-scheme: dark;
+    --page: #1F1C19; --text: #F3ECDF; --muted: #B5AC9D; --rule: #8C8377; --panel: #2A2622; --accent: #E0806E; --on-accent: #1F1C19; --pressed: #F3ECDF; --on-pressed: #1F1C19; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --paper: #1D1B18; --grid: rgba(240, 230, 210, 0.05); --ink: #F3ECDF; --soft: #B5AC9D; --line: #8C8377;
-  --panel: #26231F; --accent: #E0806E; --on-accent: #1D1B18; --rail: #5A5140; color-scheme: dark;
+  --page: #1F1C19; --text: #F3ECDF; --muted: #B5AC9D; --rule: #8C8377; --panel: #2A2622; --accent: #E0806E; --on-accent: #1F1C19; --pressed: #F3ECDF; --on-pressed: #1F1C19; color-scheme: dark;
 }
 * { box-sizing: border-box; }
-body {
-  background-color: var(--paper); color: var(--ink); font-family: var(--font-hand); font-size: 19px; line-height: 1.35;
-  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 44px 44px;
-}
+body { background: var(--page); color: var(--text); font-family: var(--font-hand); font-size: 19px; line-height: 1.35; }
 .page {
-  max-width: 1240px; margin: 0 auto; padding-block: 30px 36px;
+  max-width: 1240px; margin: 0 auto; padding-block: 22px 34px;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-  display: grid; gap: 10px;
+  display: grid; gap: 12px;
 }
-.head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px 28px; }
-.eyebrow { font-size: 15px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+.sheet { background: var(--paper); color: var(--ink); box-shadow: 3px 4px 0 rgba(60, 48, 36, 0.16); display: grid; gap: 0; padding: clamp(14px, 3vw, 34px) clamp(14px, 3vw, 38px) 12px; min-width: 0; }
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 10px 28px; }
+.eyebrow { font-size: 15px; letter-spacing: .14em; text-transform: uppercase; color: var(--sheet-accent); }
 h1 { font: 400 clamp(34px, 6vw, 60px)/1 var(--font-title); margin: 2px 0 6px; letter-spacing: -0.02em; text-wrap: balance; }
-.sub { margin: 0; font-size: 21px; letter-spacing: .06em; color: var(--ink); }
+.sub { margin: 0; font-size: 21px; letter-spacing: .06em; }
 .now { text-align: right; display: grid; gap: 0; justify-items: end; margin-left: auto; }
 .now .time { font-size: 34px; letter-spacing: .08em; line-height: 1.05; font-variant-numeric: tabular-nums; }
-.now .status { font-size: 19px; letter-spacing: .05em; color: var(--ink); }
+.now .status { font-size: 19px; letter-spacing: .05em; }
+.note { font-size: 16px; letter-spacing: .04em; color: var(--pencil); margin: 0; }
 
-.stage { position: relative; }
-.stage.compact .tag, .stage.compact svg.leaders { display: none; }
-.stage canvas { display: block; width: 100%; }
-.stage svg.leaders { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-.leaders path { fill: none; stroke: var(--line); stroke-width: 1; }
-.leaders circle { fill: var(--paper); stroke: var(--line); stroke-width: 1; }
-.tag { position: absolute; max-width: 17.5%; pointer-events: none; }
-.tag.right { text-align: right; }
-.tag b { display: block; font-weight: 400; font-size: 22px; letter-spacing: .12em; text-transform: uppercase; line-height: 1.15; }
-.tag span { display: block; font-size: 18px; letter-spacing: .05em; color: var(--soft); line-height: 1.2; }
-.nogl { padding: 60px 20px; text-align: center; color: var(--soft); }
+.stage { position: relative; aspect-ratio: 1400 / 800; margin-inline: clamp(-38px, -3vw, -14px); }
+.stage svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.stage .ink { fill: none; stroke: #3a3531; stroke-linecap: round; stroke-linejoin: round; }
+.stage .ink-f { stroke: #3a3531; }
+.stage .ink.thin { vector-effect: non-scaling-stroke; stroke-width: 1px; }
+.stage line.ink.thin { stroke-width: inherit; }
+.stage .lab-t { font: 400 23px var(--font-hand); letter-spacing: .13em; fill: var(--ink); }
+.stage .lab-n { font: 400 18.5px var(--font-hand); letter-spacing: .05em; fill: var(--pencil); }
+.stage .sign { font: 400 21px var(--font-hand); letter-spacing: .16em; fill: var(--ink); }
+.stage .lead { fill: none; stroke: var(--lead); stroke-width: 1; }
+.stage .ring { fill: var(--paper); stroke: var(--lead); stroke-width: 1; }
+.stage .air .cs { display: none; }
+.stage.compact .labels { display: none; }
 
 .steps { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
 .steps .seg { display: flex; flex-wrap: wrap; gap: 8px; }
 .steps button {
-  font: inherit; font-size: 19px; letter-spacing: .05em; cursor: pointer; color: var(--ink);
-  background: var(--panel); border: 1.5px solid var(--line); border-radius: 999px; padding: 5px 16px 6px;
+  font: inherit; font-size: 19px; letter-spacing: .05em; cursor: pointer; color: var(--text);
+  background: var(--panel); border: 1.5px solid var(--rule); border-radius: 999px; padding: 5px 16px 6px;
 }
-.steps button i { font-style: normal; color: var(--soft); margin-right: 6px; }
-.steps button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-.steps button[aria-pressed="true"] i { color: var(--rail); }
+.steps button i { font-style: normal; color: var(--muted); margin-right: 6px; }
+.steps button[aria-pressed="true"] { background: var(--pressed); color: var(--on-pressed); border-color: var(--pressed); }
+.steps button[aria-pressed="true"] i { color: inherit; opacity: .6; }
 .steps button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .steps .spacer { flex: 1; }
 .steps #play { background: var(--accent); color: var(--on-accent); border-color: var(--accent); min-width: 92px; }
-.story { margin: 4px 0 0; font-size: 23px; line-height: 1.35; max-width: 62ch; text-wrap: pretty; }
-.foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 20px; font-size: 17px; letter-spacing: .04em; color: var(--soft); margin-top: 6px; }
+.story { margin: 0; font-size: 23px; line-height: 1.35; max-width: 62ch; text-wrap: pretty; }
+.foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 20px; font-size: 17px; letter-spacing: .04em; color: var(--muted); }
 .foot a { color: inherit; }
 
 </style>
 </head>
 <body>
 <div class="page">
-  <div class="head">
-    <header>
-      <div class="eyebrow">Stream stories · 01</div>
-      <h1>The candy line</h1>
-      <p class="sub">one line · one clock · no last candy</p>
-    </header>
-    <div class="now" aria-live="off">
-      <div class="time" id="time">12:00:00</div>
-      <div class="status" id="status"></div>
+  <div class="sheet">
+    <div class="head">
+      <header>
+        <div class="eyebrow">Stream stories · 01</div>
+        <h1>The candy line</h1>
+        <p class="sub">one line · one clock · no last candy</p>
+      </header>
+      <div class="now" aria-live="off">
+        <div class="time" id="time">12:00:00</div>
+        <div class="status" id="status"></div>
+      </div>
     </div>
+    <div class="stage" id="stage"></div>
+    <p class="note">Illustrative: a made-up factory.</p>
   </div>
-  <div class="stage" id="stage"></div>
   <div class="steps">
     <div class="seg" id="scenes" role="group" aria-label="Story steps"></div>
     <span class="spacer"></span>
     <button id="play" type="button">Pause</button>
   </div>
   <p class="story" id="story"></p>
-  <div class="foot"><span>Illustrative: a made-up factory.</span><span class="links"><a href="01-transform.html">For engineers: Stateless transform</a></span></div>
+  <div class="foot"><span class="links"><a href="01-transform.html">For engineers: Stateless transform</a></span></div>
 </div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-/* Stream Stories, shared kit (needs three.js r128 as the global THREE).
-   One diorama seen from a fixed isometric camera: flat colors, thin ink outlines, soft shadows.
+/* Stream Stories, shared kit: one hand-drawn sheet in plain SVG, no libraries.
+   Everything is drawn twice, the way a marker sketch is made: a soft wash of colour with paper tooth in it,
+   then a thin ink line that bows a little and runs past its corners. The scene is isometric but flat:
+   P(x, y, z) turns a place in the room into a point on the sheet. People are small paper dolls that face the reader.
    An episode supplies scenes, init(kit, scene) and tick(dt, now); the story runs until the reader presses Pause. */
 const Story = (() => {
-  const INK = 0x3b3632;
-  const C = {
-    floor: 0xe9e1d0, base: 0xb9a07a, wall: 0xf5f0e6, belt: 0x5f5b58, slat: 0x77726d, frame: 0xa9b1b5, leg: 0x7c858b,
-    wood: 0xd3ab78, woodDark: 0xb58c5a, white: 0xfbf8f1, dark: 0x4a4541, glass: 0xbfd6dc,
-    a: 0xd9793b, b: 0x4ba39b, c: 0x9270c4, red: 0xc4604f, yellow: 0xe3b64f, blue: 0x5e7fa8, green: 0x7fa56b,
-    skin: [0xe9b994, 0xc98f6b, 0x8e5b3f], hair: [0x2e2622, 0x5a3a26, 0x8f8a84],
+  const NS = "http://www.w3.org/2000/svg";
+  const W = 1400, H = 800;
+  const INK = "#3a3531";
+  const PAL = {
+    paper: "#faf5ea", floor: "#f1e7d2", wall: "#f6eedd", wood: "#dcbd90", woodDark: "#c19f72", base: "#c9aa7f",
+    steel: "#c3c8c9", belt: "#8f8881", dark: "#4f4944", glass: "#bfd6d8", white: "#fefbf3",
+    a: "#e59a62", b: "#72bbb0", c: "#ac92d6", red: "#d67c6c", yellow: "#ecc96e", blue: "#86a3c6", green: "#9dbb88", pink: "#efb9b3",
+    skin: ["#f3ceac", "#dca97f", "#b07a57"], hair: ["#3f332d", "#7d4d2e", "#a59e95"],
   };
   const BASE = 12 * 3600;
   const hms = (t) => {
@@ -121,203 +127,191 @@ const Story = (() => {
     let a = seed >>> 0;
     return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   }
+  let rand = rng(1);
+  const f = (n) => Math.round(n * 10) / 10;
+  function mix(a, b, t) {
+    const p = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)), A = p(a), B = p(b);
+    return "#" + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, "0")).join("");
+  }
+  const lighter = (c, t = 0.4) => mix(c, "#fffaf0", t), darker = (c, t = 0.2) => mix(c, "#7a6753", t);
 
-  /* ----- drawing: every solid is a flat color with an ink outline ----- */
-  const mats = new Map();
-  const mat = (color) => { if (!mats.has(color)) mats.set(color, new THREE.MeshLambertMaterial({ color })); return mats.get(color); };
-  const inkMat = new THREE.LineBasicMaterial({ color: INK });
-  function solid(geo, color, o = {}) {
-    const m = new THREE.Mesh(geo, mat(color));
-    m.castShadow = o.cast !== false; m.receiveShadow = true;
-    if (o.ink !== false) m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, o.angle ?? 30), inkMat));
-    return m;
-  }
-  /* a box that stands on y = 0 */
-  function box(w, h, d, color, o) { const g = new THREE.BoxGeometry(w, h, d); g.translate(0, h / 2, 0); return solid(g, color, o); }
-  /* a cylinder (or cone) that stands on y = 0 */
-  /* Round things get their outline from a slightly larger ink shell seen from behind. */
-  const hullMat = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide });
-  const LINE = 0.022;
-  function cyl(rt, rb, h, color, o = {}) {
-    const g = new THREE.CylinderGeometry(rt, rb, h, o.seg ?? 14); g.translate(0, h / 2, 0);
-    const m = solid(g, color, o);
-    if (o.ink !== false) { const hg = new THREE.CylinderGeometry(rt + LINE, rb + LINE, h + LINE * 2, o.seg ?? 14); hg.translate(0, h / 2, 0); m.add(new THREE.Mesh(hg, hullMat)); }
-    return m;
-  }
-  function ball(r, color, o = {}) {
-    const m = solid(new THREE.SphereGeometry(r, o.seg ?? 18, o.rings ?? 12), color, { ...o, ink: false });
-    if (o.ink !== false) m.add(new THREE.Mesh(new THREE.SphereGeometry(r + LINE, o.seg ?? 18, o.rings ?? 12), hullMat));
-    return m;
-  }
-  const at = (obj, x, y, z) => { obj.position.set(x, y, z); return obj; };
-  function group(...kids) { const g = new THREE.Group(); kids.forEach((k) => g.add(k)); return g; }
+  /* ----- the isometric room: x runs down and right, y down and left, z up ----- */
+  const CS = Math.cos(Math.PI / 6), SN = 0.5, U = 52, OX = 551, OY = 236;
+  const P = (x, y, z = 0) => [OX + (x - y) * CS * U, OY + (x + y) * SN * U - z * U];
 
-  /* ----- props ----- */
-  /* The floor slab: a light top on a darker base, like a slice cut out of a building. Its top is y = 0. */
-  function slab(w, d) {
-    return group(at(box(w, 0.3, d, C.floor), 0, -0.3, 0), at(box(w, 0.55, d, C.base), 0, -0.85, 0));
+  /* ----- ink: every straight edge is ruled by hand, so it bows a little and overshoots ----- */
+  function stroke(a, b, o = {}) {
+    const over = o.over ?? 2.4, amp = o.amp ?? 0.9, dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+    const o1 = over * rand(), o2 = over * rand(), bow = (rand() - 0.5) * 2 * amp * Math.min(1, L / 70);
+    const A = [a[0] - ux * o1, a[1] - uy * o1], B = [b[0] + ux * o2, b[1] + uy * o2];
+    return `M${f(A[0])} ${f(A[1])}Q${f((A[0] + B[0]) / 2 - uy * bow)} ${f((A[1] + B[1]) / 2 + ux * bow)} ${f(B[0])} ${f(B[1])}`;
   }
-  /* Two walls of a cut-away room: the back wall and the left wall, with an opening where a line comes through. */
-  function walls(w, d, h, hatch) {
-    const t = 0.28, g = new THREE.Group();
-    g.add(at(box(w + t, h, t, C.wall), -t / 2, 0, -d / 2 - t / 2));
-    const x = -w / 2 - t / 2;
-    if (!hatch) g.add(at(box(t, h, d, C.wall), x, 0, 0));
-    else {
-      const z0 = hatch.z - hatch.w / 2, z1 = hatch.z + hatch.w / 2;
-      g.add(at(box(t, h, z0 + d / 2, C.wall), x, 0, (z0 - d / 2) / 2));
-      g.add(at(box(t, h, d / 2 - z1, C.wall), x, 0, (z1 + d / 2) / 2));
-      g.add(at(box(t, hatch.y0, hatch.w, C.wall), x, 0, hatch.z));
-      g.add(at(box(t, h - hatch.y1, hatch.w, C.wall), x, hatch.y1, hatch.z));
-      g.add(at(box(0.9, hatch.y1 - hatch.y0 + 0.5, hatch.w + 0.5, C.dark, { ink: false }), x - 0.6, hatch.y0 - 0.25, hatch.z));   // the dark room behind
+  const attr = (o) => ` stroke-width="${o.w ?? 1.25}"${o.col ? ` style="stroke:${o.col}"` : ""}${o.op ? ` opacity="${o.op}"` : ""}`;
+  const edges = (pairs, o = {}) => `<path class="ink" d="${pairs.map(([a, b]) => stroke(a, b, o)).join("")}"${attr(o)}/>`;
+  const loop = (pts, o) => edges(pts.map((p, i) => [p, pts[(i + 1) % pts.length]]), o);
+  /* a smooth line through points, for round things and leader lines */
+  function curve(pts, closed = false) {
+    const n = pts.length, g = (i) => (closed ? pts[(i + n) % n] : pts[Math.max(0, Math.min(n - 1, i))]);
+    let d = `M${f(pts[0][0])} ${f(pts[0][1])}`;
+    for (let i = 0; i < (closed ? n : n - 1); i++) {
+      const p0 = g(i - 1), p1 = g(i), p2 = g(i + 1), p3 = g(i + 2);
+      d += `C${f(p1[0] + (p2[0] - p0[0]) / 6)} ${f(p1[1] + (p2[1] - p0[1]) / 6)} ${f(p2[0] - (p3[0] - p1[0]) / 6)} ${f(p2[1] - (p3[1] - p1[1]) / 6)} ${f(p2[0])} ${f(p2[1])}`;
     }
-    return g;
+    return d + (closed ? "Z" : "");
   }
-  /* A conveyor from x0 to x1 at depth z. Its slats move with the items, so the line visibly runs. */
-  function belt(x0, x1, z, speed, o = {}) {
-    const top = o.top ?? 1.05, w = o.w ?? 1.15, L = x1 - x0, g = new THREE.Group();
-    g.add(at(box(L, 0.2, w + 0.16, C.frame), (x0 + x1) / 2, top - 0.26, z));
-    g.add(at(box(L, 0.06, w, C.belt, { ink: false }), (x0 + x1) / 2, top - 0.06, z));
-    for (let x = x0 + 0.7; x < x1; x += 2.2) [-1, 1].forEach((s) => g.add(at(box(0.14, top - 0.26, 0.14, C.leg), x, 0, z + s * (w / 2 - 0.05))));
-    g.add(at(cyl(0.16, 0.16, w + 0.16, C.leg, { seg: 10 }), x1, top - 0.16, z - (w + 0.16) / 2).rotateX(Math.PI / 2));
-    const gap = 0.55, slats = [];
-    for (let i = 0; i < Math.floor(L / gap); i++) { const s = box(0.05, 0.012, w - 0.1, C.slat, { ink: false, cast: false }); s.position.set(0, top, z); g.add(s); slats.push(s); }
-    const n = slats.length;
-    return { group: g, top, z, x0, x1, update(now) { slats.forEach((s, i) => { s.position.x = x0 + (((i * gap + now * speed) % (n * gap)) + n * gap) % (n * gap); }); } };
+  /* ----- wash: flat colour laid a touch off the line, with the paper showing through ----- */
+  const tooth = (d) => `<path d="${d}" fill="url(#tooth)"/>`;
+  function wash(pts, col, o = {}) {
+    const j = o.j ?? 0.9, dx = (rand() - 0.5) * 1.4, dy = (rand() - 0.5) * 1.4;
+    const d = "M" + pts.map((p) => f(p[0] + dx + (rand() - 0.5) * j) + " " + f(p[1] + dy + (rand() - 0.5) * j)).join("L") + "Z";
+    return `<path d="${d}" fill="${col}"/>` + tooth(d);
   }
-  /* A small person. look: 0..2 picks skin and hair; coat is the color of the work coat. */
-  function person(o = {}) {
-    const look = o.look ?? 0, g = new THREE.Group(), body = new THREE.Group();
-    body.add(cyl(0.2, 0.31, 0.78, o.coat ?? C.blue));
-    body.add(at(cyl(0.32, 0.32, 0.06, C.dark, { ink: false }), 0, 0, 0));
-    const head = at(ball(0.2, C.skin[look]), 0, 0.98, 0);
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.215, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.45), mat(C.hair[look]));
-    hair.position.set(0, 0.99, -0.02); hair.rotation.x = -0.5;
-    const hat = at(cyl(0.17, 0.15, 0.2, C.white), 0, 1.13, 0);
-    const eyes = [-1, 1].map((s) => at(ball(0.022, C.dark, { ink: false, cast: false }), s * 0.075, 1.0, 0.185));
-    const arms = [-1, 1].map((s) => { const a = new THREE.Group(); a.position.set(s * 0.25, 0.7, 0); a.add(at(box(0.1, 0.36, 0.1, o.coat ?? C.blue), 0, -0.36, 0)); a.add(at(ball(0.065, C.skin[look], { ink: false }), 0, -0.4, 0)); body.add(a); return a; });
-    body.add(head, hair, ...eyes); if (o.hat !== false) body.add(hat);
-    g.add(body);
-    return { group: g, body, head, arms };
+  /* a shape given as path data: washed, then inked */
+  const shape = (d, col, w = 1.4) => `<path d="${d}" fill="${col}"/>${tooth(d)}<path class="ink" d="${d}" stroke-width="${w}"/>`;
+  const dot = (x, y, r, col, w = 1.2) => `<circle cx="${f(x)}" cy="${f(y)}" r="${r}" fill="${col}"${w ? ` class="ink-f" stroke-width="${w}"` : ""}/>`;
+  const shadow = (pts, op = 0.13) => `<path d="M${pts.map((p) => f(p[0]) + " " + f(p[1])).join("L")}Z" fill="#5c5247" opacity="${op}"/>`;
+
+  /* ----- solids ----- */
+  /* A box standing at (x, y, z), w along x, d along y, h high. col is the face that looks down and right. */
+  function box(x, y, z, w, d, h, col, o = {}) {
+    const t = [P(x, y, z + h), P(x + w, y, z + h), P(x + w, y + d, z + h), P(x, y + d, z + h)], b1 = P(x + w, y, z), b2 = P(x + w, y + d, z), b3 = P(x, y + d, z);
+    return wash(t, o.top ?? lighter(col)) + wash([t[1], t[2], b2, b1], col) + wash([t[3], t[2], b2, b3], o.side ?? darker(col))
+      + edges([[t[0], t[1]], [t[1], t[2]], [t[2], t[3]], [t[3], t[0]], [t[1], b1], [t[2], b2], [t[3], b3], [b1, b2], [b2, b3]], { w: o.w });
   }
-  /* A wall clock that faces +z. Its long hand goes round once a minute. */
-  function clock(r = 0.62) {
-    const g = new THREE.Group();
-    const face = cyl(r, r, 0.08, C.white, { seg: 28 }); face.rotation.x = Math.PI / 2; g.add(face);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(r, 0.05, 8, 28), mat(C.dark)); rim.position.z = 0.08; g.add(rim);
-    for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2, t = at(box(0.03, i % 3 === 0 ? 0.12 : 0.06, 0.01, C.dark, { ink: false, cast: false }), 0, 0, 0); t.position.set(Math.sin(a) * r * 0.8, Math.cos(a) * r * 0.8 - (i % 3 === 0 ? 0.06 : 0.03), 0.09); g.add(t); }
-    const hand = (len, w, color) => { const p = new THREE.Group(); p.position.z = 0.1; p.add(box(w, len, 0.012, color, { ink: false, cast: false })); g.add(p); return p; };
-    const minute = hand(r * 0.5, 0.05, C.dark), second = hand(r * 0.78, 0.03, C.red);
-    g.add(at(ball(0.045, C.dark, { ink: false, cast: false }), 0, 0, 0.11));
-    return { group: g, update(now) { second.rotation.z = -(now % 60) / 60 * Math.PI * 2; minute.rotation.z = -((now / 60) % 60) / 60 * Math.PI * 2; } };
+  /* An open box you can drop things into. under goes behind what falls in, over goes in front of it. */
+  function crate(x, y, z, w, d, h, col) {
+    const T = (px, py) => P(px, py, z + h), B = (px, py) => P(px, py, z), in1 = darker(col, 0.45), in2 = darker(col, 0.6);
+    const under = wash([B(x, y), B(x + w, y), B(x + w, y + d), B(x, y + d)], darker(col, 0.75)) + wash([T(x, y), T(x, y + d), B(x, y + d), B(x, y)], in1) + wash([T(x, y), T(x + w, y), B(x + w, y), B(x, y)], in2)
+      + edges([[T(x, y), T(x + w, y)], [T(x, y), T(x, y + d)], [T(x, y), B(x, y)]], { w: 1.1 });
+    const over = wash([T(x + w, y), T(x + w, y + d), B(x + w, y + d), B(x + w, y)], col) + wash([T(x, y + d), T(x + w, y + d), B(x + w, y + d), B(x, y + d)], darker(col))
+      + edges([[T(x + w, y), T(x + w, y + d)], [T(x + w, y + d), T(x, y + d)], [T(x + w, y), B(x + w, y)], [T(x + w, y + d), B(x + w, y + d)], [T(x, y + d), B(x, y + d)], [B(x + w, y), B(x + w, y + d)], [B(x + w, y + d), B(x, y + d)]]);
+    return { under, over };
   }
-  /* An open wooden crate: a floor and four low sides. */
-  function crate(w, h, d, color = C.wood) {
-    const t = 0.07, g = new THREE.Group();
-    g.add(box(w, t, d, C.woodDark));
-    [[0, -d / 2 + t / 2, w, t], [0, d / 2 - t / 2, w, t], [-w / 2 + t / 2, 0, t, d], [w / 2 - t / 2, 0, t, d]].forEach(([x, z, sw, sd]) => g.add(at(box(sw, h, sd, color), x, 0, z)));
-    return g;
+  /* An upright cylinder: a can, a jar, a roll. */
+  function cyl(x, y, z, r, h, col, o = {}) {
+    const c0 = P(x, y, z), c1 = P(x, y, z + h), rx = f(Math.SQRT2 * CS * r * U), ry = f(Math.SQRT2 * SN * r * U);
+    const body = `M${f(c1[0] - rx)} ${f(c1[1])}L${f(c0[0] - rx)} ${f(c0[1])}A${rx} ${ry} 0 0 0 ${f(c0[0] + rx)} ${f(c0[1])}L${f(c1[0] + rx)} ${f(c1[1])}A${rx} ${ry} 0 0 1 ${f(c1[0] - rx)} ${f(c1[1])}Z`;
+    const top = `M${f(c1[0] - rx)} ${f(c1[1])}A${rx} ${ry} 0 1 0 ${f(c1[0] + rx)} ${f(c1[1])}A${rx} ${ry} 0 1 0 ${f(c1[0] - rx)} ${f(c1[1])}Z`;
+    return shape(body, col, o.w ?? 1.2) + shape(top, o.top ?? lighter(col), o.w ?? 1.2);
   }
 
-  /* ----- the stage: renderer, camera, labels ----- */
-  let renderer, scene, camera, world, stageEl, leaders, tags = [], fit = null, raw = null;
-  const AZ = Math.PI / 4, EL = (30 * Math.PI) / 180;
-  const DIR = new THREE.Vector3(Math.cos(EL) * Math.sin(AZ), Math.sin(EL), Math.cos(EL) * Math.cos(AZ));
+  /* ----- people: flat paper dolls, feet at (0, 0), about 86 tall with the hat ----- */
+  function doll(o = {}) {
+    const look = o.look ?? 0, skin = PAL.skin[look], hair = PAL.hair[look], coat = o.coat ?? PAL.blue;
+    let h = `<ellipse cx="0" cy="1.5" rx="20" ry="6.5" fill="#8097b8" opacity=".5"/>`;
+    [-1, 1].forEach((s) => {
+      h += shape(`M${s * 6 - 3.2} -13L${s * 6 - 3.2} -3L${s * 6 + 3.2} -3L${s * 6 + 3.2} -13Z`, "#66738c", 1.2);
+      h += shape(`M${s * 6 - 4.4} -3.4Q${s * 6 - 5} 0.8 ${s * 6} 0.8Q${s * 6 + 5} 0.8 ${s * 6 + 4.4} -3.4Z`, "#9a6b4c", 1.2);
+    });
+    h += shape("M-8.5 -45C-13.5 -45 -15 -40 -16 -34L-20 -15C-21.5 -9 -17 -8.5 -12 -8.5L12 -8.5C17 -8.5 21.5 -9 20 -15L16 -34C15 -40 13.5 -45 8.5 -45Z", coat, 1.5);
+    if (o.apron !== false) h += shape("M-6.5 -39L6.5 -39L10.5 -11.5L-10.5 -11.5Z", PAL.white, 1.1);
+    h += shape("M-13.6 -57A13.6 13.6 0 1 0 13.6 -57A13.6 13.6 0 1 0 -13.6 -57Z", skin, 1.5);
+    h += `<path d="M-13.4 -59C-14 -66 -8 -70.5 0 -70.5C8 -70.5 14 -66 13.4 -59C9 -62.5 4 -63.5 0 -63.5C-4 -63.5 -9 -62.5 -13.4 -59Z" fill="${hair}"/>`;
+    h += dot(-5, -55.5, 1.7, INK, 0) + dot(5, -55.5, 1.7, INK, 0);
+    h += `<circle cx="-8.6" cy="-51.4" r="3.1" fill="#ee9f97" opacity=".6"/><circle cx="8.6" cy="-51.4" r="3.1" fill="#ee9f97" opacity=".6"/>`;
+    h += `<path class="ink" d="M-3 -50.2Q0 -47.6 3 -50.2" stroke-width="1.2"/>`;
+    if (o.hat !== false) {
+      h += shape("M-10.5 -67C-17.5 -70 -16 -82.5 -6.5 -80.5C-4 -87 6 -87 8 -80.5C16.5 -82.5 17.5 -70 10.5 -67Z", PAL.white, 1.4);
+      h += shape("M-11 -70L11 -70L11 -64.5L-11 -64.5Z", PAL.white, 1.2);
+    }
+    return h;
+  }
+  /* One arm, hanging from (0, 0). The episode turns it about the shoulder. tool: "paddle" for a small wooden pusher. */
+  function arm(o = {}) {
+    let h = "";
+    if (o.tool === "paddle") h += `<path class="ink" d="M0 22L0 41" stroke-width="2.2" style="stroke:#8a6a48"/>` + shape("M-6.5 38L6.5 38L6.5 48L-6.5 48Z", PAL.wood, 1.2);
+    h += shape("M-3.8 0L-3.8 20A3.8 3.8 0 0 0 3.8 20L3.8 0A3.8 3.8 0 0 0 -3.8 0Z", o.coat ?? PAL.blue, 1.3);
+    return h + dot(0, 23, 4.1, PAL.skin[o.look ?? 0], 1.2);
+  }
+  const SHOULDER = [[-13, -39], [13, -39]];   // where the arms hang from, before the doll is scaled
 
+  /* ----- the sheet ----- */
+  let stageEl, back, live, labelLayer = null, labels = [], tight = null;
+  /* Paper tooth: a small tile of soft noise, made once. Some patches dry lighter and some pool darker, as marker does on paper. */
+  function toothTile() {
+    const n = 256, c = document.createElement("canvas"); c.width = c.height = n;
+    const g = c.getContext("2d"), img = g.createImageData(n, n), r = rng(11);
+    const lattice = (m) => {
+      const a = new Float32Array(m * m).map(() => r()), v = (i, j) => a[(((j % m) + m) % m) * m + (((i % m) + m) % m)];
+      return (x, y) => { const fx = (x / n) * m, fy = (y / n) * m, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0, sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty); return (v(x0, y0) * (1 - sx) + v(x0 + 1, y0) * sx) * (1 - sy) + (v(x0, y0 + 1) * (1 - sx) + v(x0 + 1, y0 + 1) * sx) * sy; };
+    };
+    const n1 = lattice(5), n2 = lattice(12), n3 = lattice(40);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const v = 0.5 * n1(x, y) + 0.3 * n2(x, y) + 0.2 * n3(x, y), grain = r(), i = (y * n + x) * 4, pale = v < 0.44;
+      const a = pale ? (0.44 - v) * 0.75 : (v - 0.52) * 0.42;
+      img.data[i] = pale ? 255 : 96; img.data[i + 1] = pale ? 250 : 76; img.data[i + 2] = pale ? 238 : 60;
+      img.data[i + 3] = Math.max(0, Math.min(1, a + (grain > 0.92 ? 0.035 : 0))) * 255;
+    }
+    g.putImageData(img, 0, 0);
+    return c.toDataURL("image/png");
+  }
   function setup(el) {
     stageEl = el;
-    try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); } catch (e) { renderer = null; }
-    if (!renderer) { el.innerHTML = '<p class="nogl">This story needs WebGL, which is not available in this browser.</p>'; return false; }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    el.appendChild(renderer.domElement);
-    renderer.domElement.setAttribute("role", "img");
-    renderer.domElement.setAttribute("aria-label", "Animated factory diorama");
-    leaders = document.createElementNS("http://www.w3.org/2000/svg", "svg"); leaders.setAttribute("class", "leaders"); el.appendChild(leaders);
-    scene = new THREE.Scene();
-    scene.add(new THREE.AmbientLight(0xffffff, 0.36));
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xd9cdb6, 0.45));
-    const sun = new THREE.DirectionalLight(0xfff4e0, 0.34);
-    sun.position.set(6, 14, 9); sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    Object.assign(sun.shadow.camera, { left: -13, right: 13, top: 10, bottom: -10, near: 1, far: 40 });
-    sun.shadow.bias = -0.0015; sun.shadow.radius = 3;
-    scene.add(sun);
-    camera = new THREE.OrthographicCamera(-10, 10, 6, -6, 0.1, 100);
-    world = new THREE.Group(); scene.add(world);
+    const mk = (cls) => { const s = document.createElementNS(NS, "svg"); s.setAttribute("class", cls); s.setAttribute("viewBox", `0 0 ${W} ${H}`); el.appendChild(s); return s; };
+    back = mk("back"); live = mk("live");
+    back.setAttribute("role", "img"); back.setAttribute("aria-label", "Hand-drawn factory scene");
     window.addEventListener("resize", layout);
-    return true;
   }
-  /* Frame the diorama: box = [x0, x1, y0, y1, z0, z1] in world units, padX = empty paper left and right for the labels. */
-  function frame(box, padX = 0.24, padY = 0.05) {
-    const [x0, x1, y0, y1, z0, z1] = box, c = new THREE.Vector3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
-    camera.position.copy(c).addScaledVector(DIR, 40); camera.up.set(0, 1, 0); camera.lookAt(c); camera.updateMatrixWorld();
-    const inv = camera.matrixWorldInverse; let l = Infinity, r = -Infinity, b = Infinity, t = -Infinity;
-    [x0, x1].forEach((x) => [y0, y1].forEach((y) => [z0, z1].forEach((z) => { const v = new THREE.Vector3(x, y, z).applyMatrix4(inv); l = Math.min(l, v.x); r = Math.max(r, v.x); b = Math.min(b, v.y); t = Math.max(t, v.y); })));
-    raw = { l, r, b, t, padX, padY };
-    layout();
-  }
-  /* On a wide page the diorama leaves paper on both sides for the labels. On a phone it fills the width and the labels step aside. */
+  /* On a wide page the whole sheet shows, labels in the margins. On a phone the sheet closes in on the room and the labels step aside. */
   function layout() {
-    if (!renderer || !raw) return;
-    const compact = stageEl.clientWidth < 720, w0 = raw.r - raw.l, h0 = raw.t - raw.b, px = compact ? 0.02 : raw.padX;
-    stageEl.classList.toggle("compact", compact);
-    fit = { l: raw.l - w0 * px, r: raw.r + w0 * px, b: raw.b - h0 * raw.padY, t: raw.t + h0 * raw.padY };
-    Object.assign(camera, { left: fit.l, right: fit.r, top: fit.t, bottom: fit.b }); camera.updateProjectionMatrix();
-    const w = stageEl.clientWidth, h = Math.round(w * (fit.t - fit.b) / (fit.r - fit.l));
-    renderer.setSize(w, h, false); renderer.domElement.style.height = h + "px";
-    placeTags();
-    if (scene) renderer.render(scene, camera);
+    const compact = stageEl.clientWidth < 720 && tight, v = compact ? tight : [0, 0, W, H];
+    stageEl.classList.toggle("compact", !!compact);
+    [back, live].forEach((s) => s.setAttribute("viewBox", v.join(" ")));
+    stageEl.style.aspectRatio = `${v[2]} / ${v[3]}`;
   }
-  const toScreen = (p) => { const v = new THREE.Vector3(p[0], p[1], p[2]).project(camera), el = renderer.domElement; return [(v.x + 1) / 2 * el.clientWidth, (1 - v.y) / 2 * el.clientHeight]; };
-  /* Labels in the paper margin, each tied by a thin line to the thing it names.
-     list = [{ title, sub, at: [x, y, z], side: "left" | "right", y: fraction of the stage height }] */
-  function setTags(list) {
-    tags.forEach((t) => t.el.remove());
-    tags = list.map((t) => {
-      const el = document.createElement("div"); el.className = "tag " + t.side;
-      el.innerHTML = `<b>${t.title}</b><span>${t.sub}</span>`; stageEl.appendChild(el);
-      return { ...t, el };
+  const g = (parent, html = "", attrs = "") => { parent.insertAdjacentHTML("beforeend", `<g ${attrs}>${html}</g>`); return parent.lastElementChild; };
+  /* the paper: a faint isometric grid and a few pencil crosses */
+  function paper() {
+    let d = "";
+    for (let k = -30; k <= 60; k++) { const a = P(k * 2, -40), b = P(k * 2, 60), c = P(-40, k * 2), e = P(60, k * 2); d += `M${f(a[0])} ${f(a[1])}L${f(b[0])} ${f(b[1])}M${f(c[0])} ${f(c[1])}L${f(e[0])} ${f(e[1])}`; }
+    let h = `<path d="${d}" stroke="${INK}" stroke-width=".7" opacity=".055" fill="none"/>`;
+    [[120, 560], [1296, 500], [236, 742], [1160, 70], [1040, 770], [300, 84]].forEach(([x, y]) => { h += `<path class="ink" d="M${x - 6} ${y}L${x + 6} ${y}M${x} ${y - 6}L${x} ${y + 6}" stroke-width=".9" opacity=".55"/>`; });
+    return h;
+  }
+  /* Margin notes. list = [{ title, note, x, y, side: "start" | "end", to: [sheet x, sheet y] }] */
+  function setLabels(list) {
+    labels = list; if (!labelLayer) return;
+    labelLayer.innerHTML = list.map((l, i) => `<text class="lab-t" data-i="${i}" x="${l.x}" y="${l.y}" text-anchor="${l.side}">${l.title}</text><text class="lab-n" x="${l.x}" y="${l.y + 22}" text-anchor="${l.side}">${l.note}</text>`).join("");
+    let h = ""; rand = rng(5);
+    labelLayer.querySelectorAll(".lab-t").forEach((t) => {
+      const l = list[+t.dataset.i], w = t.getComputedTextLength(), wn = t.nextElementSibling.getComputedTextLength(), s = l.side === "start" ? 1 : -1;
+      const a = [l.x + s * (w + 13), l.y - 7], b = [a[0] + s * Math.max(30, wn - w + 8), a[1] + (rand() - 0.5) * 2], m = [(b[0] + l.to[0]) / 2 + (rand() - 0.5) * 5, (b[1] + l.to[1]) / 2 + (rand() - 0.5) * 5];
+      h += `<path class="lead" d="M${f(a[0])} ${f(a[1])}L${f(b[0])} ${f(b[1])}Q${f(m[0])} ${f(m[1])} ${f(l.to[0])} ${f(l.to[1])}"/>`;
+      h += `<circle class="ring" cx="${f(a[0])}" cy="${f(a[1])}" r="3"/><circle class="ring" cx="${f(l.to[0])}" cy="${f(l.to[1])}" r="2.6"/>`;
     });
-    placeTags();
-  }
-  function placeTags() {
-    if (!renderer) return;
-    const W = renderer.domElement.clientWidth, H = renderer.domElement.clientHeight; let d = "";
-    tags.forEach((t) => {
-      t.el.style.top = t.y * H + "px";
-      if (t.side === "left") { t.el.style.left = "4px"; t.el.style.right = ""; } else { t.el.style.right = "4px"; t.el.style.left = ""; }
-      const bw = t.el.querySelector("b").getBoundingClientRect().width, r0 = stageEl.getBoundingClientRect(), rb = t.el.querySelector("b").getBoundingClientRect();
-      const sy = rb.top - r0.top + rb.height / 2, sx = t.side === "left" ? rb.left - r0.left + bw + 12 : rb.left - r0.left - 12;
-      const [ax, ay] = toScreen(t.at), ex = sx + (t.side === "left" ? 26 : -26);
-      d += `<path d="M${sx},${sy} H${ex} L${ax},${ay}"/><circle cx="${sx}" cy="${sy}" r="2.6"/><circle cx="${ax}" cy="${ay}" r="2.2"/>`;
-    });
-    leaders.innerHTML = d;
-  }
-
-  /* Take an object off the stage and free what it drew with. */
-  function drop(obj) {
-    obj.traverse((n) => { if (n.geometry) n.geometry.dispose(); });
-    if (obj.parent) obj.parent.remove(obj);
+    labelLayer.insertAdjacentHTML("afterbegin", h);
   }
 
   function start(ep) {
-    if (!setup(document.querySelector("#stage"))) return;
+    setup(document.querySelector("#stage"));
     let sceneDef = ep.scenes[0], paused = false, now = 0, last = null;
     const playBtn = document.querySelector("#play"), timeEl = document.querySelector("#time"), statusEl = document.querySelector("#status");
-    const kit = { THREE, C, world, box, cyl, ball, at, group, solid, drop, slab, walls, belt, person, clock, crate, frame, setTags, rng };
+    const tile = toothTile();
+    const kit = {
+      PAL, INK, P, U, CS, SN, rng, mix, lighter, darker, f,
+      edges, loop, curve, wash, shape, dot, shadow, box, crate, cyl, doll, arm, SHOULDER, setLabels,
+      /* draw into the still part of the sheet, behind everything that moves */
+      still: (html) => back.insertAdjacentHTML("beforeend", html),
+      /* a new layer in the moving part of the sheet; layers stack in the order they are made */
+      layer: (html = "", attrs = "") => g(live, html, attrs),
+      node: g,
+      labelLayer: () => { labelLayer = g(live, "", 'class="labels"'); setLabels(labels); return labelLayer; },
+      seed: (s) => { rand = rng(s); },
+      /* the part of the sheet a phone shows: [x, y, w, h] */
+      focus: (v) => { tight = v; layout(); },
+    };
     function load(s) {
-      sceneDef = s; now = 0;
+      sceneDef = s; now = 0; labelLayer = null; labels = []; rand = rng(3);
       document.querySelectorAll("#scenes button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.id === s.id ? "true" : "false"));
       document.querySelector("#story").innerHTML = s.story;
-      while (world.children.length) drop(world.children[0]);
+      back.innerHTML = `<defs><pattern id="tooth" patternUnits="userSpaceOnUse" width="256" height="256"><image href="${tile}" width="256" height="256"/></pattern></defs>` + paper();
+      live.innerHTML = "";
       ep.init(kit, s);
-      draw();
+      layout(); draw();
     }
     function draw() {
       timeEl.textContent = hms(now);
       if (ep.status) statusEl.textContent = ep.status();
-      renderer.render(scene, camera);
     }
     const seg = document.querySelector("#scenes");
     ep.scenes.forEach((s, i) => {
@@ -331,18 +325,18 @@ const Story = (() => {
     document.addEventListener("visibilitychange", () => { last = null; });
     load(sceneDef);
     if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) setPaused(true);
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeTags);
-    function loop(t) {
-      requestAnimationFrame(loop);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => setLabels(labels));
+    function frame(t) {
+      requestAnimationFrame(frame);
       if (last == null) { last = t; return; }
       const dt = Math.min(0.05, (t - last) / 1000); last = t;
       if (paused) return;
       now += dt; ep.tick(dt, now); draw();
     }
-    requestAnimationFrame(loop);
+    requestAnimationFrame(frame);
   }
 
-  return { start, C, hms, rng };
+  return { start, PAL, hms, rng };
 })();
 
 </script>
@@ -351,94 +345,132 @@ const Story = (() => {
    A stream is a line that never ends, an event is one candy, an operator is a worker on the line.
    The same candies come out of the kitchen in every scene; only the workers change. */
 (() => {
-  const V = 1.3;                         // belt speed, floor units per second
-  const X0 = -7, X1 = 4.9, BZ = 0.8, TOP = 0.9, BW = 0.95;   // the belt: from the hatch to the shipping box
-  const R = 0.3, R_SMALL = 0.17, MAN = 1.75, BACK = 1.12;   // candy sizes, worker size, how far behind the line a worker stands
+  const V = 1.3;                                   // belt speed, room units per second
+  const FX = 13, FY = 6.4, WH = 3.7;              // the room: floor size and wall height
+  const X1 = 10.6, BY = 3.9, BW = 1.0, TOP = 0.9;  // the belt: from the hatch at x = 0 to X1, centred on y = BY
+  const WY = 2.95, MAN = 1.15;                     // workers stand just behind the belt; MAN is their size
+  const R = 0.3, R_SMALL = 0.18;
   const FLAVORS = ["a", "b", "c"];
-  const PUSH = 0.55, FALL = 0.42, POP = 0.4;
-  const CLOCK = [0.4, 3.25];              // where the clock hangs on the back wall
+  const PUSH = 0.6, FALL = 0.45, POP = 0.4, SLAT = 0.6;
+  const CLOCK = [5.9, 2.85, 0.6];                  // on the back wall: x, height, radius
 
   const SCENES = [
-    { id: "line", label: "The line", stations: [{ kind: "watch", x: -1.4 }],
+    { id: "line", label: "The line", stations: [{ kind: "watch", x: 5.2 }],
       story: "A stream is like this candy line. It has no last candy. Each one rolls out of the kitchen at its own moment, and the clock on the wall keeps the time. Nobody waits for the batch to be finished, because it never is." },
-    { id: "inspector", label: "The inspector", stations: [{ kind: "filter", x: -1.4 }],
+    { id: "inspector", label: "The inspector", stations: [{ kind: "filter", x: 5.2 }],
       story: "A worker on the line looks at one candy at a time and decides on the spot. Big enough stays on the line. Too small goes in the bin. The worker needs no memory of the candies before. Engineers call this a filter." },
-    { id: "wrapper", label: "The wrapper", stations: [{ kind: "wrap", x: -1.4 }],
+    { id: "wrapper", label: "The wrapper", stations: [{ kind: "wrap", x: 5.2 }],
       story: "This worker changes every candy. One raw candy comes in, one wrapped candy goes out, and the line never stops for it. Engineers call this a transform." },
-    { id: "both", label: "The whole line", stations: [{ kind: "filter", x: -3.4 }, { kind: "wrap", x: 1.0 }],
+    { id: "both", label: "The whole line", stations: [{ kind: "filter", x: 3.4 }, { kind: "wrap", x: 7.4 }],
       story: "Workers stand in a row and each one does a small job. Raw candy goes in on the left and finished candy comes out on the right, a moment after it arrived. That is stream processing: the work happens while things move." },
   ];
 
-  let k, C, rnd, sc, belt, wallClock, items, stations, nextBorn, smallRun, lastFlavor, counts;
+  let k, PAL, P, U, rnd, sc, L, items, stations, nextBorn, smallRun, lastFlavor, counts, serial, slats, hands;
 
-  /* ----- the room ----- */
+  /* ----- the room, drawn once ----- */
   function room() {
-    const w = k.world;
-    w.add(k.slab(14, 7));
-    w.add(k.walls(14, 7, 4.2, { z: BZ, w: 1.7, y0: 0.55, y1: 2.0 }));
-    belt = k.belt(X0 - 0.3, X1, BZ, V, { top: TOP, w: BW }); w.add(belt.group);
-    wallClock = k.clock(0.66); k.at(wallClock.group, CLOCK[0], CLOCK[1], -3.49); w.add(wallClock.group);
-    // on the back wall: a window, a shelf of jars and a door
-    w.add(k.at(k.box(2.5, 1.4, 0.05, C.glass), -4.6, 2.1, -3.48));
-    w.add(k.at(k.box(0.07, 1.4, 0.07, C.white), -4.6, 2.1, -3.47));
-    w.add(k.at(k.box(2.5, 0.07, 0.07, C.white), -4.6, 2.77, -3.47));
-    w.add(k.at(k.box(2.3, 0.08, 0.5, C.wood), -1.75, 2.75, -3.24));
-    FLAVORS.forEach((f, i) => {
-      w.add(k.at(k.cyl(0.2, 0.2, 0.46, C[f]), -2.5 + i * 0.75, 2.83, -3.24));
-      w.add(k.at(k.cyl(0.21, 0.21, 0.08, C.white), -2.5 + i * 0.75, 3.29, -3.24));
-    });
-    w.add(k.at(k.box(1.25, 2.5, 0.06, C.blue), 5.6, 0, -3.47));
-    w.add(k.at(k.ball(0.07, C.yellow), 5.15, 1.2, -3.4));
+    const wallP = (y, z) => P(0, y, z), backP = (x, z) => P(x, 0, z);
+    let h = "";
+    h += k.box(-0.3, -0.3, -0.55, FX + 0.3, FY + 0.3, 0.37, PAL.base);
+    h += k.box(-0.3, -0.3, -0.18, FX + 0.3, FY + 0.3, 0.18, k.darker(PAL.floor, 0.12), { top: PAL.floor });
+    const joints = [];
+    for (let x = 1; x < FX; x++) joints.push([P(x, 0), P(x, FY)]);
+    for (let y = 1; y < FY; y++) joints.push([P(0, y), P(FX, y)]);
+    h += k.edges(joints, { w: 0.7, op: 0.22, over: 0, amp: 0.5 });
+    // two walls of a room cut open: the kitchen wall on the left, the back wall on the right
+    h += k.box(-0.3, -0.3, 0, 0.3, FY + 0.3, WH, PAL.wall);
+    h += k.box(0, -0.3, 0, FX, 0.3, WH, PAL.wall, { side: k.darker(PAL.wall, 0.09) });
+    // the hatch the line comes through, with its sill and jamb
+    const hy0 = BY - 0.72, hy1 = BY + 0.72, hz0 = 0.5, hz1 = 1.95;
+    h += k.wash([wallP(hy0, hz0), wallP(hy1, hz0), wallP(hy1, hz1), wallP(hy0, hz1)], PAL.dark);
+    h += k.wash([P(0, hy0, hz0), P(0, hy1, hz0), P(-0.3, hy1, hz0), P(-0.3, hy0, hz0)], k.darker(PAL.wall, 0.3));
+    h += k.wash([P(0, hy0, hz0), P(0, hy0, hz1), P(-0.3, hy0, hz1), P(-0.3, hy0, hz0)], k.darker(PAL.wall, 0.45));
+    h += k.loop([wallP(hy0, hz0), wallP(hy1, hz0), wallP(hy1, hz1), wallP(hy0, hz1)], { w: 1.4 });
+    h += k.shape("M" + [wallP(BY + 1.2, 2.2), wallP(BY - 1.2, 2.2), wallP(BY - 1.2, 2.8), wallP(BY + 1.2, 2.8)].map((p) => k.f(p[0]) + " " + k.f(p[1])).join("L") + "Z", PAL.white, 1.2);
+    const s0 = wallP(BY + 1.03, 2.34);
+    h += `<text class="sign" transform="matrix(${k.CS} ${-k.SN} 0 1 ${k.f(s0[0])} ${k.f(s0[1])})">KITCHEN</text>`;
+    // on the back wall: a window, the clock face, a shelf of jars, a door
+    h += k.wash([backP(1.2, 1.6), backP(3.3, 1.6), backP(3.3, 3.0), backP(1.2, 3.0)], PAL.glass);
+    h += k.loop([backP(1.2, 1.6), backP(3.3, 1.6), backP(3.3, 3.0), backP(1.2, 3.0)], { w: 1.5 });
+    h += k.edges([[backP(2.25, 1.6), backP(2.25, 3.0)], [backP(1.2, 2.4), backP(3.3, 2.4)]], { w: 1.1 });
+    h += k.edges([[backP(1.5, 1.85), backP(1.9, 2.2)], [backP(1.55, 2.05), backP(1.75, 2.22)], [backP(2.6, 2.6), backP(3.0, 2.85)]], { w: 0.8, op: 0.5, over: 0 });
+    const c0 = P(CLOCK[0], 0, CLOCK[1]), m = `matrix(${k.f(k.CS * U)} ${k.f(k.SN * U)} 0 ${-U} ${k.f(c0[0])} ${k.f(c0[1])})`;
+    let ticks = "";
+    for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2, r0 = CLOCK[2] * (i % 3 ? 0.84 : 0.74), r1 = CLOCK[2] * 0.92; ticks += `M${(Math.sin(a) * r0).toFixed(3)} ${(Math.cos(a) * r0).toFixed(3)}L${(Math.sin(a) * r1).toFixed(3)} ${(Math.cos(a) * r1).toFixed(3)}`; }
+    h += `<g transform="${m}"><circle r="${CLOCK[2] + 0.07}" fill="${PAL.dark}"/><circle r="${CLOCK[2]}" fill="${PAL.white}"/><path class="ink thin" d="${ticks}"/></g>`;
+    h += k.box(3.62, 0, 1.95, 1.56, 0.42, 0.08, PAL.wood);
+    FLAVORS.forEach((fl, i) => { h += k.cyl(3.92 + i * 0.48, 0.21, 2.03, 0.15, 0.36, PAL[fl]) + k.cyl(3.92 + i * 0.48, 0.21, 2.39, 0.16, 0.06, PAL.white); });
+    h += k.wash([backP(11.2, 0), backP(12.4, 0), backP(12.4, 2.5), backP(11.2, 2.5)], PAL.blue);
+    h += k.loop([backP(11.2, 0), backP(12.4, 0), backP(12.4, 2.5), backP(11.2, 2.5)], { w: 1.4 });
+    h += k.loop([backP(11.4, 1.4), backP(12.2, 1.4), backP(12.2, 2.3), backP(11.4, 2.3)], { w: 0.9, op: 0.7, over: 0.5 });
+    h += k.dot(...backP(12.2, 1.15), 2.6, PAL.yellow, 1.1);
     // spare boxes against the back wall
-    w.add(k.at(k.box(1.1, 0.8, 1.0, C.wood), 3.6, 0, -2.85));
-    w.add(k.at(k.box(0.85, 0.65, 0.85, C.woodDark), 3.55, 0.8, -2.9).rotateY(0.3));
-    // the shipping box at the end of the line
-    w.add(holeBox(1.5, 0.62, 1.35, C.wood, X1 + 1.05, BZ));
+    h += k.shadow([P(8.6, 1.5), P(10.85, 1.5), P(10.85, 1.85), P(8.6, 1.85)]);
+    h += k.box(8.6, 0.5, 0, 1.1, 1.0, 0.8, PAL.wood) + k.box(8.75, 0.6, 0.8, 0.8, 0.8, 0.6, PAL.woodDark) + k.box(9.95, 0.45, 0, 0.9, 0.9, 0.7, PAL.wood);
+    // what the belt and the boxes throw on the floor
+    h += k.shadow([P(0, BY + 0.5), P(X1, BY + 0.5), P(X1, BY + 0.95), P(0, BY + 0.95)], 0.12);
+    k.still(h);
   }
-  /* A box you can drop things into: the dark top reads as an opening. */
-  function holeBox(bw, h, d, color, x, z) {
-    return k.at(k.group(k.box(bw, h, d, color), k.at(k.box(bw - 0.2, 0.012, d - 0.2, C.dark, { ink: false, cast: false }), 0, h, 0)), x, 0, z);
+
+  function beltParts() {
+    const y0 = BY - BW / 2, y1 = BY + BW / 2, top = [P(0, y0 + 0.08, TOP), P(X1, y0 + 0.08, TOP), P(X1, y1 - 0.08, TOP), P(0, y1 - 0.08, TOP)];
+    const legX = [1.2, 3.6, 6.0, 8.4, 10.3];
+    let h = legX.map((x) => k.box(x, y0 + 0.06, 0, 0.12, 0.12, 0.62, PAL.steel)).join("");
+    h += k.box(0, y0, 0.62, X1, BW, TOP - 0.62, PAL.steel);
+    h += k.wash(top, PAL.belt) + k.loop(top, { w: 1 });
+    h += legX.map((x) => k.box(x, y1 - 0.18, 0, 0.12, 0.12, 0.62, PAL.steel)).join("");
+    const d = "M" + top.map((p) => k.f(p[0]) + " " + k.f(p[1])).join("L") + "Z";
+    let lines = "";
+    for (let i = -1; i * SLAT < X1; i++) { const a = P(i * SLAT, y0 + 0.12, TOP), b = P(i * SLAT, y1 - 0.12, TOP); lines += `M${k.f(a[0])} ${k.f(a[1])}L${k.f(b[0])} ${k.f(b[1])}`; }
+    h += `<defs><clipPath id="belt-top"><path d="${d}"/></clipPath></defs><g clip-path="url(#belt-top)"><g id="slats"><path d="${lines}" stroke="#c9c2b8" stroke-width="1.3" opacity=".75" fill="none"/></g></g>`;
+    return h;
   }
 
   function station(def, i) {
-    const coat = { watch: C.green, filter: C.blue, wrap: C.red }[def.kind];
-    const p = k.person({ look: def.kind === "wrap" ? 2 : def.kind === "filter" ? 1 : 0, coat });
-    p.group.scale.setScalar(MAN);
-    k.at(p.group, def.x, 0.04, BZ - BACK);
-    k.world.add(p.group);
-    k.world.add(k.at(k.box(1.5, 0.04, 1.05, C.yellow, { cast: false }), def.x, 0, BZ - BACK));    // the worker's mat
+    const look = { watch: 0, filter: 1, wrap: 2 }[def.kind], coat = { watch: PAL.green, filter: PAL.blue, wrap: PAL.red }[def.kind];
+    const foot = P(def.x, WY, 0), st = { ...def, foot, act: -9, phase: i * 1.7 };
+    if (def.kind === "wrap") {              // a side table with a roll of wrapping paper
+      k.node(L.dolls, k.box(def.x + 0.75, WY - 0.75, 0, 0.9, 0.7, 0.8, PAL.wood) + k.cyl(def.x + 1.2, WY - 0.4, 0.8, 0.2, 0.45, PAL.white));
+    }
+    st.body = k.node(L.dolls, `<g transform="scale(${MAN})">${k.doll({ look, coat })}</g>`);
+    st.arms = k.SHOULDER.map((s, a) => k.node(L.arms, `<g transform="scale(${MAN})">${k.arm({ look, coat, tool: def.kind === "filter" && a === 0 ? "paddle" : null })}</g>`));
     if (def.kind === "filter") {
-      const paddle = k.group(k.at(k.box(0.05, 0.24, 0.05, C.woodDark), 0, -0.62, 0), k.at(k.box(0.2, 0.1, 0.05, C.wood), 0, -0.7, 0));
-      p.arms[1].add(paddle);
-      k.world.add(holeBox(1.05, 0.6, 1.05, C.red, def.x + 0.6, BZ + 1.75));
+      st.bin = [def.x + 0.15, BY + 1.3, 1.2, 1.0, 0.7];
+      const c = k.crate(st.bin[0], st.bin[1], 0, st.bin[2], st.bin[3], st.bin[4], PAL.red);
+      k.node(L.under, k.shadow([P(st.bin[0], st.bin[1] + st.bin[3]), P(st.bin[0] + st.bin[2], st.bin[1] + st.bin[3]), P(st.bin[0] + st.bin[2], st.bin[1] + st.bin[3] + 0.35), P(st.bin[0], st.bin[1] + st.bin[3] + 0.35)]) + c.under);
+      k.node(L.over, c.over);
     }
-    if (def.kind === "wrap") {      // a side table with a roll of wrapping paper
-      k.world.add(k.at(k.box(0.9, 0.75, 0.7, C.wood), def.x + 1.45, 0, BZ - BACK - 0.1));
-      k.world.add(k.at(k.cyl(0.2, 0.2, 0.6, C.white, { seg: 16 }), def.x + 1.15, 0.97, BZ - BACK - 0.1).rotateZ(-Math.PI / 2));
-    }
-    return { ...def, p, act: -9, phase: i * 1.7 };
+    return st;
   }
 
   /* ----- candies ----- */
-  function candy(flavor, small) {
-    const r = small ? R_SMALL : R;
-    return { flavor, small, r, obj: k.group(k.ball(r, C[flavor])), state: "belt", done: 0, wrapped: false, pop: -9 };
+  function candyArt(it) {
+    const r = it.r * U, col = PAL[it.flavor], pts = [];
+    for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2, q = r * (1 + 0.035 * Math.sin(i * 2.4 + it.id)); pts.push([Math.cos(a) * q, Math.sin(a) * q]); }
+    const ball = k.curve(pts, true);
+    let h = `<ellipse class="cs" cx="${k.f(r * 0.25)}" cy="${k.f(r * 1.02)}" rx="${k.f(r * 1.05)}" ry="${k.f(r * 0.42)}" fill="#3d3631" opacity=".28"/>`;
+    if (it.wrapped) {
+      const tw = (s) => k.shape(`M${k.f(s * r * 0.8)} 0L${k.f(s * r * 1.85)} ${k.f(-r * 0.68)}L${k.f(s * r * 1.6)} 0L${k.f(s * r * 1.85)} ${k.f(r * 0.68)}Z`, k.lighter(col, 0.3), 1.2);
+      h += `<g transform="rotate(30)">${tw(-1)}${tw(1)}${k.shape(ball, col, 1.4)}`;
+      h += `<path d="M${k.f(-r * 0.34)} ${k.f(-r * 0.93)}Q${k.f(-r * 0.05)} 0 ${k.f(-r * 0.34)} ${k.f(r * 0.93)}L${k.f(r * 0.34)} ${k.f(r * 0.93)}Q${k.f(r * 0.63)} 0 ${k.f(r * 0.34)} ${k.f(-r * 0.93)}Z" fill="${PAL.white}" opacity=".9"/>`;
+      h += `<path class="ink" d="M${k.f(-r * 0.34)} ${k.f(-r * 0.93)}Q${k.f(-r * 0.05)} 0 ${k.f(-r * 0.34)} ${k.f(r * 0.93)}M${k.f(r * 0.34)} ${k.f(-r * 0.93)}Q${k.f(r * 0.63)} 0 ${k.f(r * 0.34)} ${k.f(r * 0.93)}" stroke-width="1"/></g>`;
+    } else {
+      h += k.shape(ball, col, 1.4);
+      h += `<path d="M${k.f(-r * 0.55)} ${k.f(-r * 0.25)}Q${k.f(-r * 0.5)} ${k.f(-r * 0.62)} ${k.f(-r * 0.12)} ${k.f(-r * 0.66)}" stroke="#fffaf0" stroke-width="${k.f(r * 0.2)}" stroke-linecap="round" fill="none" opacity=".75"/>`;
+    }
+    return `<g transform="translate(0 ${k.f(-r)})">${h}</g>`;
   }
-  function wrap(it) {
-    const r = it.r, col = C[it.flavor];
-    [-1, 1].forEach((s) => it.obj.add(k.at(k.cyl(r * 0.62, 0.02, r * 0.75, col, { seg: 10 }), s * r * 0.82, 0, 0).rotateZ(-s * Math.PI / 2)));
-    it.obj.add(k.at(k.cyl(r * 1.04, r * 1.04, r * 0.5, C.white, { ink: false, seg: 18 }), -r * 0.25, 0, 0).rotateZ(-Math.PI / 2));
-    it.wrapped = true;
-  }
+  function wrap(it) { it.wrapped = true; it.el.innerHTML = candyArt(it); }
   function newCandy(born) {
     let small = rnd() < 0.34;
     if (small && smallRun >= 2) small = false;
     smallRun = small ? smallRun + 1 : 0;
-    let f = FLAVORS[Math.floor(rnd() * 3)];
-    if (f === lastFlavor && rnd() < 0.6) f = FLAVORS[(FLAVORS.indexOf(f) + 1) % 3];
-    lastFlavor = f;
-    const it = candy(f, small); it.born = born;
-    k.world.add(it.obj); items.push(it);
+    let fl = FLAVORS[Math.floor(rnd() * 3)];
+    if (fl === lastFlavor && rnd() < 0.6) fl = FLAVORS[(FLAVORS.indexOf(fl) + 1) % 3];
+    lastFlavor = fl;
+    const it = { id: serial++, flavor: fl, small, r: small ? R_SMALL : R, state: "belt", done: 0, wrapped: false, pop: -9, born };
+    it.el = k.node(L.candy, ""); it.el.innerHTML = candyArt(it);
+    items.push(it);
     return it;
   }
   const gap = () => (rnd() < 0.22 ? 0.8 + rnd() * 0.25 : 1.3 + rnd() * 2.1);    // candies come unevenly, sometimes two close together
@@ -450,7 +482,8 @@ const Story = (() => {
       if (st.kind === "watch") { if (!quiet) counts.seen++; }
       else if (st.kind === "filter") {
         if (it.small) {
-          if (quiet) { it.state = "gone"; } else { it.state = "push"; it.t0 = now; it.from = x; it.to = st.x + 0.6; st.act = now; counts.small++; }
+          if (quiet) it.state = "gone";
+          else { it.state = "push"; it.t0 = now; it.from = x; it.bin = st.bin; st.act = now; counts.small++; }
         } else if (!quiet) counts.passed++;
       } else if (st.kind === "wrap") {
         wrap(it);
@@ -460,87 +493,103 @@ const Story = (() => {
   }
 
   function place(it, now) {
-    const o = it.obj, x = X0 + V * (now - it.born), y = TOP + it.r;
+    const x = V * (now - it.born);
+    let p, s = 1, air = false;
     if (it.state === "belt") {
       meet(it, x, now, false);
-      if (it.state === "belt") {
-        if (x >= X1) { it.state = "fall"; it.t0 = now; }
-        o.position.set(x, y, BZ);
-        const u = (now - it.pop) / POP;
-        o.scale.setScalar(u >= 0 && u < 1 ? 1 + 0.4 * Math.sin(Math.PI * u) : 1);
-        o.visible = x > X0 - 0.2;
-        return;
-      }
+      if (it.state === "belt" && x >= X1) { it.state = "fall"; it.t0 = now; }
     }
-    if (it.state === "push") {              // off the line, over the edge and into the bin
-      const u = (now - it.t0) / PUSH;
-      if (u >= 1.3) { it.state = "gone"; return; }
-      const e = Math.min(1, u), drop = Math.max(0, u - 1) / 0.3;
-      o.position.set(it.from + (it.to - it.from) * e, y + (0.6 + it.r - y) * e * e + 0.5 * Math.sin(Math.PI * e) - drop * 0.5, BZ + 1.75 * e);
-      return;
-    }
-    if (it.state === "fall") {              // off the end of the line, into the shipping box
-      const u = (now - it.t0) / FALL;
-      if (u >= 1.35) { it.state = "gone"; return; }
-      o.position.set(X1 + 1.0 * Math.min(1, u), y - (y - 0.4) * u * u, BZ);
-    }
+    if (it.state === "belt") {
+      p = P(x, BY, TOP);
+      const u = (now - it.pop) / POP;
+      if (u >= 0 && u < 1) s = 1 + 0.4 * Math.sin(Math.PI * u);
+      it.el.style.opacity = Math.max(0, Math.min(1, (x - 0.05) / 0.3));
+    } else if (it.state === "push") {         // off the line, over the edge and into the bin
+      const u = (now - it.t0) / PUSH, e = Math.min(1, u), b = it.bin, sink = Math.max(0, u - 1) / 0.35;
+      if (sink >= 1) { it.state = "gone"; return; }
+      p = P(it.from + (b[0] + b[2] / 2 - it.from) * e, BY + (b[1] + b[3] / 2 - BY) * e, TOP + (b[4] - 0.05 - TOP) * e + 0.75 * Math.sin(Math.PI * e) - sink * 0.55);
+      air = true;
+    } else if (it.state === "fall") {         // off the end of the line, into the shipping box
+      const u = (now - it.t0) / FALL, e = Math.min(1, u), sink = Math.max(0, u - 1) / 0.35;
+      if (sink >= 1) { it.state = "gone"; return; }
+      p = P(X1 + 1.15 * e, BY, TOP + 0.25 * Math.sin(Math.PI * e) - 0.2 * e - sink * 0.5);
+      air = true;
+    } else return;
+    it.el.setAttribute("transform", `translate(${k.f(p[0])} ${k.f(p[1])})${s !== 1 ? ` scale(${s.toFixed(3)})` : ""}`);
+    if (air !== it.air) { it.air = air; it.el.classList.toggle("air", air); }
   }
 
   function workers(now) {
     stations.forEach((st) => {
       // the candy this worker is dealing with: the nearest one that has not gone past yet
       let near = 9;
-      items.forEach((it) => { if (it.state !== "belt") return; const d = st.x - (X0 + V * (now - it.born)); if (d > -0.5 && Math.abs(d) < Math.abs(near)) near = d; });
+      items.forEach((it) => { if (it.state !== "belt") return; const d = st.x - V * (now - it.born); if (d > -0.5 && Math.abs(d) < Math.abs(near)) near = d; });
       const busy = Math.max(0, 1 - (now - st.act) / 0.5);
-      const ready = st.kind === "watch" ? 0 : Math.max(0, 1 - Math.abs(near) / 0.9) * 0.55;
+      const ready = st.kind === "watch" ? 0 : Math.max(0, 1 - Math.abs(near) / 0.9) * 0.6;
       const reach = Math.max(busy, ready);
-      const b = st.p.body;
-      b.position.y = Math.sin(now * 2.2 + st.phase) * 0.012;
-      b.rotation.y = Math.max(-0.6, Math.min(0.6, -near * 0.3));
-      b.rotation.x = 0.06 + 0.2 * reach;
-      st.p.arms[0].rotation.x = -0.3 - (st.kind === "wrap" ? 1.0 : 0.25) * reach;
-      st.p.arms[1].rotation.x = -0.3 - 1.0 * reach - (st.kind === "filter" ? 0.5 * busy : 0);
+      const lean = -5 * reach + Math.sin(now * 1.7 + st.phase) * 0.8, bob = Math.sin(now * 2.2 + st.phase) * 0.6;
+      const [fx, fy] = st.foot, a = (lean * Math.PI) / 180;
+      st.body.setAttribute("transform", `translate(${k.f(fx)} ${k.f(fy + bob)}) rotate(${lean.toFixed(2)})`);
+      const turn = [
+        8 + 62 * reach + (st.kind === "filter" ? 12 * busy : 0),
+        -8 + (st.kind === "wrap" ? 72 : st.kind === "filter" ? 30 : 0) * reach,
+      ];
+      k.SHOULDER.forEach(([sx, sy], i) => {
+        const x = fx + MAN * (sx * Math.cos(a) - sy * Math.sin(a)), y = fy + bob + MAN * (sx * Math.sin(a) + sy * Math.cos(a));
+        st.arms[i].setAttribute("transform", `translate(${k.f(x)} ${k.f(y)}) rotate(${turn[i].toFixed(1)})`);
+      });
     });
   }
 
   /* ----- labels: each scene names only what it is about ----- */
-  function tags() {
-    const first = stations[0], last = stations[stations.length - 1];
+  function labels() {
+    const first = stations[0], last = stations[stations.length - 1], head = (st) => [st.foot[0] + 15 * MAN, st.foot[1] - 60 * MAN];
     const list = [
-      { title: "Kitchen", sub: "candies come out one by one", at: [X0, 1.5, BZ], side: "left", y: 0.2 },
-      { title: "The line", sub: "never stops, never ends", at: [X0 + 2.2, TOP, BZ + 0.3], side: "left", y: 0.5 },
-      { title: "Clock", sub: "every candy has its moment", at: [CLOCK[0], CLOCK[1], -3.4], side: "right", y: 0.12 },
-      { title: "Shipping", sub: "out as soon as it is ready", at: [X1 + 1.5, 0.62, BZ + 0.3], side: "right", y: 0.8 },
+      { title: "KITCHEN", note: "candies come out one by one", x: 56, y: 150, side: "start", to: P(0, BY + 0.3, 1.7) },
+      { title: "THE LINE", note: "never stops, never ends", x: 56, y: 486, side: "start", to: P(1.9, BY + 0.5, TOP) },
+      { title: "CLOCK", note: "every candy has its moment", x: 1344, y: 130, side: "end", to: P(CLOCK[0] + 0.45, 0, CLOCK[1] + 0.2) },
+      { title: "SHIPPING", note: "out as soon as it is ready", x: 1344, y: 650, side: "end", to: P(X1 + 1.9, BY + 0.2, 0.55) },
     ];
-    const who = (st, title, sub, y) => list.push({ title, sub, at: [st.x + 0.25, 1.75, BZ - BACK], side: "right", y });
-    if (sc.id === "line") who(first, "Worker", "sees each candy as it passes", 0.4);
-    if (sc.id === "inspector") who(first, "Inspector", "one look, one decision", 0.4);
-    if (sc.id === "wrapper") who(first, "Wrapper", "one in, one out, changed", 0.4);
-    if (sc.id === "both") { who(first, "Inspector", "first job: pick", 0.33); who(last, "Wrapper", "second job: wrap", 0.55); }
-    const bin = stations.find((s) => s.kind === "filter");
-    if (bin) list.push({ title: "Too small", sub: "off the line, for good", at: [bin.x + 0.3, 0.62, BZ + 2.2], side: "left", y: 0.8 });
-    k.setTags(list);
+    const who = (st, title, note, y) => list.push({ title, note, x: 1344, y, side: "end", to: head(st) });
+    if (sc.id === "line") who(first, "WORKER", "sees each candy as it passes", 300);
+    if (sc.id === "inspector") who(first, "INSPECTOR", "one look, one decision", 300);
+    if (sc.id === "wrapper") who(first, "WRAPPER", "one in, one out, changed", 300);
+    if (sc.id === "both") { who(first, "INSPECTOR", "first job: pick", 250); who(last, "WRAPPER", "second job: wrap", 380); }
+    const f = stations.find((s) => s.kind === "filter");
+    if (f) list.push({ title: "TOO SMALL", note: "off the line, for good", x: 56, y: 660, side: "start", to: P(f.bin[0] + 0.15, f.bin[1] + f.bin[3], 0.45) });
+    k.setLabels(list);
   }
 
   function init(kit, scene) {
-    k = kit; C = kit.C; sc = scene; rnd = kit.rng(7);
-    items = []; smallRun = 0; lastFlavor = null; counts = { seen: 0, passed: 0, small: 0, wrapped: 0 };
+    k = kit; PAL = kit.PAL; P = kit.P; U = kit.U; sc = scene; rnd = kit.rng(7);
+    items = []; smallRun = 0; lastFlavor = null; serial = 0; counts = { seen: 0, passed: 0, small: 0, wrapped: 0 };
     room();
+    // the moving part of the sheet, back to front
+    L = { clock: k.layer(), dolls: k.layer(), belt: k.layer(), under: k.layer(), candy: k.layer(), arms: k.layer(), over: k.layer() };
+    const c0 = P(CLOCK[0], 0, CLOCK[1]);
+    hands = k.node(L.clock, `<line class="ink thin" x1="0" y1="0" stroke-width="2.2"/><line class="ink thin" x1="0" y1="0" stroke-width="1.4" style="stroke:#c4604f"/><circle r=".05" fill="${k.INK}"/>`, `transform="matrix(${k.f(k.CS * U)} ${k.f(k.SN * U)} 0 ${-U} ${k.f(c0[0])} ${k.f(c0[1])})"`).querySelectorAll("line");
+    k.node(L.belt, beltParts()); slats = document.querySelector("#slats");
     stations = scene.stations.map(station);
+    const ship = k.crate(X1 + 0.4, BY - 0.7, 0, 1.5, 1.4, 0.75, PAL.wood);
+    k.node(L.under, k.shadow([P(X1 + 0.4, BY + 0.7), P(X1 + 1.9, BY + 0.7), P(X1 + 1.9, BY + 1.05), P(X1 + 0.4, BY + 1.05)]) + ship.under);
+    k.node(L.over, ship.over);
+    k.labelLayer(); labels();
+    k.focus([246, 24, 908, 760]);
     // the line is already running when the story opens: candies made in the last seconds are on their way
-    nextBorn = -(X1 - X0) / V + 0.4;
-    while (nextBorn <= 0) { const it = newCandy(nextBorn); meet(it, X0 + V * (0 - it.born), 0, true); nextBorn += gap(); }
-    k.frame([-7.3, 7, -0.85, 4.2, -3.8, 3.5], 0.3, 0.04);
-    tags();
+    nextBorn = -X1 / V + 0.4;
+    while (nextBorn <= 0) { const it = newCandy(nextBorn); meet(it, V * (0 - it.born), 0, true); nextBorn += gap(); }
     tick(0, 0);
   }
 
   function tick(dt, now) {
     while (nextBorn <= now) { newCandy(nextBorn); nextBorn += gap(); }
     items.forEach((it) => place(it, now));
-    items = items.filter((it) => { if (it.state === "gone") k.drop(it.obj); return it.state !== "gone"; });
+    items = items.filter((it) => { if (it.state === "gone") it.el.remove(); return it.state !== "gone"; });
     workers(now);
-    belt.update(now); wallClock.update(now);
+    const ph = (V * now) % SLAT;
+    slats.setAttribute("transform", `translate(${k.f(ph * k.CS * U)} ${k.f(ph * k.SN * U)})`);
+    const hand = (el, turn, len) => { const a = turn * Math.PI * 2; el.setAttribute("x2", (Math.sin(a) * len).toFixed(3)); el.setAttribute("y2", (Math.cos(a) * len).toFixed(3)); };
+    hand(hands[0], now / 3600, CLOCK[2] * 0.5); hand(hands[1], now / 60, CLOCK[2] * 0.8);
   }
 
   function status() {
