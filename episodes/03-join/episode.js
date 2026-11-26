@@ -29,6 +29,7 @@
   const GAP = {
     busy: (r) => (r() < 0.45 ? MIN_GAP + r() * 0.5 : 2.4 + r() * 3.2),
     mid: (r) => 3 + r() * 4,
+    steady: (r) => 2.6 + r() * 2.6,
     slow: (r) => 4 + r() * 5,
   };
   const SEL = "SELECT t.device, t.temperature, h.humidity FROM temps AS t ";
@@ -48,10 +49,10 @@
       note: "Now both sides are streams: temperatures (<code>t</code>) on the upper lane, humidity readings (<code>h</code>) on the lower lane, each at its own pace. A match can come from either side at any time, so the operator has to keep every row of both streams, each in its own table. A new row is joined with all rows of the same device in the other table. Nothing is ever removed, so the state only grows. Proton aborts the query when the buffered rows pass <code>join_max_buffered_bytes</code>; here the limit is what the two tables can hold. When both are full, the next row has no room: the query is aborted and the demo starts over.",
     },
     {
-      id: "range", label: "Within 5s", kind: "range", rule: "ON device, within 5s", warm: 16, echo: 0.45,
-      gaps: { L: "mid", R: "mid" }, tables: { L: "temps rows", R: "humidity rows" }, lanes: BOTH,
+      id: "range", label: "Within 5s", kind: "range", rule: "ON device, rows up to 5s old", warm: 16, echo: 0.45,
+      gaps: { L: "steady", R: "steady" }, tables: { L: "temps rows, by age", R: "humidity rows, by age" }, lanes: BOTH,
       sql: SEL + "JOIN humidity AS h ON t.device = h.device AND date_diff_within(5s)",
-      note: "A time bound stops the growth. Two rows now match only if their times are at most 5 seconds apart. Once both streams have moved more than 5 seconds past a row, it can never match again and is removed from its table (gold outline, then gone). If one stream goes quiet the cleanup waits for it, because the slower stream decides how far time has advanced.",
+      note: "A time bound stops the growth, because rows are now kept by <b>age</b>. Every stored row shows how old it is. A new row can only match rows that are at most 5 seconds old, so a row older than that can never match again: it turns grey. A grey row is removed (gold outline, then gone) as soon as both streams have moved past it. If one stream goes quiet, the cleanup waits for it. The state stays small however long the query runs.",
     },
     {
       id: "latest", label: "Latest", kind: "latest", rule: "ON device, latest humidity", warm: 16,
@@ -75,6 +76,12 @@
     if (!lookup()) {                      // a device's row in a table holds CHIP.cap chips: keep the devices balanced
       const n = (k) => tbl[side][k].length + inputs.filter((c) => c.ev.side === side && c.ev.key === k).length;
       if (n(key) >= CHIP.cap - 1) key = KEYS.reduce((a, k) => (n(k) < n(a) ? k : a));
+    }
+    if (mode.kind === "range") {          // keep clear of the edge: a partner is either well inside the 5 seconds or well outside
+      const other = side === "L" ? "R" : "L";
+      const edge = (k) => [...tbl[other][k].map((x) => x.ev), ...inputs.filter((c) => c.ev.side === other && c.ev.key === k).map((c) => c.ev)]
+        .some((e) => Math.abs(Math.abs(at - e.et) - RANGE) < 0.7);
+      if (edge(key)) key = KEYS.find((k) => !edge(k)) ?? key;
     }
     const [lo, span] = side === "L" ? [26, 13] : [35, 31];
     let val = lo + Math.floor(r() * span);
@@ -147,12 +154,23 @@
     LANE[side] - TB.h / 2 + 27 + KEYS.indexOf(key) * CHIP.row + CHIP.h / 2,
   ];
   const chipLabel = (ev) => (ev.tag ? `${ev.tag} · ${ev.val} ${ev.side === "L" ? "°C" : "%"}` : `${ev.key} · ${ev.val}`);
-  function chip(layer, ev, [x, y]) {
+  /* aged = a stored row of the range join: its label moves to the left and its age is printed on the right. */
+  function chip(layer, ev, [x, y], aged) {
     const g = layer.append("g").attr("class", "chip").attr("transform", `translate(${x},${y})`);
     g.append("rect").attr("x", -CHIP.w / 2).attr("y", -CHIP.h / 2).attr("width", CHIP.w).attr("height", CHIP.h)
       .attr("rx", ev.side === "R" ? 2 : 7).style("fill", Lab.keyColor(ev.key));
-    g.append("text").attr("y", 3.6).text(chipLabel(ev));
+    const label = g.append("text").attr("y", 3.6).text(chipLabel(ev));
+    if (aged) {
+      label.attr("x", -CHIP.w / 2 + 8).style("text-anchor", "start").text(`${ev.tag} · ${ev.val}${ev.side === "L" ? "°" : "%"}`);
+      g.append("text").attr("class", "age").attr("x", CHIP.w / 2 - 8).attr("y", 3.6).style("text-anchor", "end");
+    }
     return g;
+  }
+  /* Range join: a stored row ages. It fades a little as it gets older and turns grey once it is too old to match. */
+  function showAge(r, now) {
+    const age = now - r.ev.et, old = age > RANGE;
+    r.g.select(".age").text(`${Math.max(0, Math.floor(age))}s`);
+    r.g.select("rect").style("fill", old ? "var(--late)" : Lab.keyColor(r.ev.key)).style("fill-opacity", old ? 1 : 1 - 0.35 * Math.min(1, age / RANGE));
   }
   const outline = (g, color) => g.select("rect").interrupt().style("stroke", color).style("stroke-width", 3);
   const flashChip = (g) => { if (!warming) outline(g, "var(--accent)").transition().duration(800).style("stroke-width", 0); };
@@ -161,7 +179,7 @@
   function store(ev, replace) {
     const rows = tbl[ev.side][ev.key];
     if (replace) rows.splice(0).forEach((r) => r.g.remove());
-    const r = { ev, g: chip(L.state, ev, chipPos(ev.side, ev.key, rows.length)) };
+    const r = { ev, g: chip(L.state, ev, chipPos(ev.side, ev.key, rows.length), mode.kind === "range") };
     rows.push(r);
     flashChip(r.g);
     return r;
@@ -332,6 +350,7 @@
       const sc = o.through ? 1 : 0.4 + 0.6 * u * u;
       o.g.attr("transform", `translate(${OP.cx + V * a},${o.y}) scale(${sc})`).style("display", a < 0 ? "none" : null).style("opacity", o.through ? 1 : Math.min(1, a / 0.25));
     });
+    if (mode.kind === "range") Object.values(tbl).forEach((t) => KEYS.forEach((k) => t[k].forEach((r) => showAge(r, now))));
     flies.forEach((f) => {
       const p = Math.min(1, Math.max(0, (now - f.T) / f.dur)), e = p * p * (3 - 2 * p), [tx, ty] = f.to();
       f.g.attr("transform", `translate(${f.from[0] + (tx - f.from[0]) * e},${f.from[1] + (ty - f.from[1]) * e})`).style("opacity", 1 - f.fade * p * p);

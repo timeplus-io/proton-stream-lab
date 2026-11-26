@@ -87,6 +87,7 @@ footer .here { font-weight: 700; color: var(--fg); }
 .sl .lane { font: 600 11px var(--font-body); fill: var(--muted); }
 .sl .tbox .t-title { font: 600 11px var(--font-body); fill: var(--muted); }
 .sl .chip rect { stroke-width: 0; }
+.sl .chip text.age { font-weight: 700; }
 .sl .chip text { font: 600 10px var(--font-mono); fill: var(--on-key); text-anchor: middle; font-variant-numeric: tabular-nums; }
 .sl .state .c-flash { fill: none; stroke: var(--accent); stroke-width: 2.5; opacity: 0; }
 .sl .state .s-title { font: 600 11px var(--font-body); }
