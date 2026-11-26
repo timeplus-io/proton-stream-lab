@@ -57,6 +57,19 @@ h1 { font: 400 clamp(34px, 6vw, 60px)/1 var(--font-title); margin: 2px 0 6px; le
 .stage .lead { fill: none; stroke: var(--lead); stroke-width: 1; }
 .stage .ring { fill: var(--paper); stroke: var(--lead); stroke-width: 1; }
 .stage .air .cs { display: none; }
+.stage .spark { display: none; }
+.stage .busy .spark { display: inline; }
+.stage .flag-t { font: 400 14px var(--font-hand); letter-spacing: .03em; fill: var(--ink); }
+.stage .flag-t.warn { fill: #b14a3a; }
+.stage .card-n { font: 400 18px var(--font-hand); fill: var(--ink); }
+.stage .card-h { font: 400 13.5px var(--font-hand); letter-spacing: .04em; fill: var(--pencil); }
+.stage .board-t { font: 400 19px var(--font-hand); letter-spacing: .14em; fill: var(--pencil); }
+.stage .board-r { font: 400 21px var(--font-hand); letter-spacing: .05em; fill: var(--ink); }
+.stage .board-n { font: 400 27px var(--font-hand); fill: var(--ink); }
+.stage .board-n.hot, .stage .hot .board-r { fill: #c4604f; }
+.stage .halo { fill: none; stroke: #c4604f; stroke-width: 2.4; }
+.stage .banner { font: 400 30px var(--font-hand); letter-spacing: .12em; fill: #b14a3a; }
+.stage .plus { font: 400 22px var(--font-hand); fill: #c4604f; }
 .stage.compact .labels { display: none; }
 
 .steps { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
@@ -73,6 +86,7 @@ h1 { font: 400 clamp(34px, 6vw, 60px)/1 var(--font-title); margin: 2px 0 6px; le
 .steps #play { background: var(--accent); color: var(--on-accent); border-color: var(--accent); min-width: 92px; }
 .story { margin: 0; font-size: 23px; line-height: 1.35; max-width: 62ch; text-wrap: pretty; }
 .foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 20px; font-size: 17px; letter-spacing: .04em; color: var(--muted); }
+.foot .links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 22px; }
 .foot a { color: inherit; }
 
 </style>
@@ -100,7 +114,7 @@ h1 { font: 400 clamp(34px, 6vw, 60px)/1 var(--font-title); margin: 2px 0 6px; le
     <button id="play" type="button">Pause</button>
   </div>
   <p class="story" id="story"></p>
-  <div class="foot"><span class="links"><a href="01-transform.html">For engineers: Stateless transform</a></span></div>
+  <div class="foot"><span class="links"><a href="01-transform.html">For engineers: Stateless transform</a><a href="story-02-tally-board.html">02 The tally board →</a></span></div>
 </div>
 <script>
 /* Stream Stories, shared kit: one hand-drawn sheet in plain SVG, no libraries.
@@ -299,6 +313,8 @@ const Story = (() => {
       seed: (s) => { rand = rng(s); },
       /* the part of the sheet a phone shows: [x, y, w, h] */
       focus: (v) => { tight = v; layout(); },
+      /* start the scene again from 12:00:00 */
+      restart: () => load(sceneDef),
     };
     function load(s) {
       sceneDef = s; now = 0; labelLayer = null; labels = []; rand = rng(3);
@@ -339,257 +355,351 @@ const Story = (() => {
   return { start, PAL, hms, rng };
 })();
 
+/* Stream Stories: the candy factory that every story is set in.
+   Factory(kit) gives an episode the room, the lines, the workers and the things that travel: candies, cups and report cards.
+   Places are in room units: x runs along the lines (down and right on the sheet), y across the room, z up. */
+const Factory = (k) => {
+  const { PAL, P, U, f, CS, SN } = k;
+  const FX = 13, FY = 6.4, WH = 3.7;               // floor size and wall height
+  const TOP = 0.9, BW = 1.0, V = 1.3, SLAT = 0.6;  // a line: height of its top, its width, its speed
+  const MAN = 1.15, R = 0.3, R_SMALL = 0.18;       // size of a worker, of a candy, of a small candy
+  const FLAVORS = ["a", "b", "c"];
+  const NAMES = { a: "ORANGE", b: "MINT", c: "GRAPE" };
+  const path = (pts) => "M" + pts.map((p) => f(p[0]) + " " + f(p[1])).join("L") + "Z";
+  let uid = 0, tweens = [];
+
+  /* text that lies on a wall: the left wall is the one the lines come through, the back wall is the long one behind */
+  const onLeft = (y, z) => { const p = P(0, y, z); return `matrix(${CS} ${-SN} 0 1 ${f(p[0])} ${f(p[1])})`; };
+  const onBack = (x, z) => { const p = P(x, 0, z); return `matrix(${CS} ${SN} 0 1 ${f(p[0])} ${f(p[1])})`; };
+  /* a flat panel on the back wall, from x0 to x1 and z0 to z1 */
+  const panel = (x0, x1, z0, z1, col, w = 1.4) => { const q = [P(x0, 0, z0), P(x1, 0, z0), P(x1, 0, z1), P(x0, 0, z1)]; return k.wash(q, col) + k.loop(q, { w }); };
+
+  /* ----- the room, drawn once into the still part of the sheet -----
+     o.hatches: [{ y, sign }] openings in the left wall; o.window: [x0, x1]; o.clock: [x, z, r]; o.door: x of its left edge */
+  function room(o = {}) {
+    const hatches = o.hatches ?? [{ y: 3.9, sign: "KITCHEN" }], L = (y, z) => P(0, y, z), B = (x, z) => P(x, 0, z);
+    let h = k.box(-0.3, -0.3, -0.55, FX + 0.3, FY + 0.3, 0.37, PAL.base)
+      + k.box(-0.3, -0.3, -0.18, FX + 0.3, FY + 0.3, 0.18, k.darker(PAL.floor, 0.12), { top: PAL.floor });
+    const joints = [];
+    for (let x = 1; x < FX; x++) joints.push([P(x, 0), P(x, FY)]);
+    for (let y = 1; y < FY; y++) joints.push([P(0, y), P(FX, y)]);
+    h += k.edges(joints, { w: 0.7, op: 0.2, over: 0, amp: 0.5 });
+    h += k.box(-0.3, -0.3, 0, 0.3, FY + 0.3, WH, PAL.wall) + k.box(0, -0.3, 0, FX, 0.3, WH, PAL.wall, { side: k.darker(PAL.wall, 0.09) });
+    hatches.forEach(({ y, sign }) => {
+      const y0 = y - 0.72, y1 = y + 0.72, z0 = 0.5, z1 = 1.95, q = [L(y0, z0), L(y1, z0), L(y1, z1), L(y0, z1)];
+      h += k.wash(q, PAL.dark);
+      h += k.wash([P(0, y0, z0), P(0, y1, z0), P(-0.3, y1, z0), P(-0.3, y0, z0)], k.darker(PAL.wall, 0.3));     // the sill
+      h += k.wash([P(0, y0, z0), P(0, y0, z1), P(-0.3, y0, z1), P(-0.3, y0, z0)], k.darker(PAL.wall, 0.45));    // the far jamb
+      h += k.loop(q, { w: 1.4 });
+      if (sign) {
+        const w = (sign.length * 17 + 26) / U;
+        h += k.shape(path([L(y + w / 2, 2.2), L(y - w / 2, 2.2), L(y - w / 2, 2.8), L(y + w / 2, 2.8)]), PAL.white, 1.2);
+        h += `<text class="sign" transform="${onLeft(y + w / 2 - 14 / U, 2.34)}">${sign}</text>`;
+      }
+    });
+    if (o.window) {
+      const [x0, x1] = o.window, xm = (x0 + x1) / 2;
+      h += panel(x0, x1, 1.6, 3.0, PAL.glass, 1.5) + k.edges([[B(xm, 1.6), B(xm, 3.0)], [B(x0, 2.4), B(x1, 2.4)]], { w: 1.1 });
+      h += k.edges([[B(x0 + 0.3, 1.85), B(x0 + 0.7, 2.2)], [B(xm + 0.35, 2.6), B(xm + 0.75, 2.85)]], { w: 0.8, op: 0.5, over: 0 });
+    }
+    if (o.clock) {
+      const [cx, cz, r] = o.clock, c0 = P(cx, 0, cz); let ticks = "";
+      for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2, r0 = r * (i % 3 ? 0.84 : 0.74), r1 = r * 0.92; ticks += `M${(Math.sin(a) * r0).toFixed(3)} ${(Math.cos(a) * r0).toFixed(3)}L${(Math.sin(a) * r1).toFixed(3)} ${(Math.cos(a) * r1).toFixed(3)}`; }
+      h += `<g transform="matrix(${f(CS * U)} ${f(SN * U)} 0 ${-U} ${f(c0[0])} ${f(c0[1])})"><circle r="${r + 0.07}" fill="${PAL.dark}"/><circle r="${r}" fill="${PAL.white}"/><path class="ink thin" d="${ticks}"/></g>`;
+    }
+    if (o.door != null) {
+      const x = o.door;
+      h += panel(x, x + 1.2, 0, 2.5, PAL.blue) + k.loop([B(x + 0.2, 1.4), B(x + 1.0, 1.4), B(x + 1.0, 2.3), B(x + 0.2, 2.3)], { w: 0.9, op: 0.7, over: 0.5 }) + k.dot(...B(x + 1.0, 1.15), 2.6, PAL.yellow, 1.1);
+    }
+    k.still(h);
+  }
+  /* the hands of the wall clock; returns a function to call every frame */
+  function clockHands(layer, [cx, cz, r]) {
+    const c0 = P(cx, 0, cz);
+    const hands = k.node(layer, `<line class="ink thin" x1="0" y1="0" stroke-width="2.2"/><line class="ink thin" x1="0" y1="0" stroke-width="1.4" style="stroke:#c4604f"/><circle r=".05" fill="${k.INK}"/>`, `transform="matrix(${f(CS * U)} ${f(SN * U)} 0 ${-U} ${f(c0[0])} ${f(c0[1])})"`).querySelectorAll("line");
+    const set = (el, turn, len) => { const a = turn * Math.PI * 2; el.setAttribute("x2", (Math.sin(a) * len).toFixed(3)); el.setAttribute("y2", (Math.cos(a) * len).toFixed(3)); };
+    return (now) => { set(hands[0], now / 3600, r * 0.5); set(hands[1], now / 60, r * 0.8); };
+  }
+
+  /* ----- a line (conveyor) from x0 to x1, centred on y. Its slats move, so the line visibly runs. ----- */
+  function belt(layer, x0, x1, y) {
+    const y0 = y - BW / 2, y1 = y + BW / 2, id = "belt" + ++uid;
+    const top = [P(x0, y0 + 0.08, TOP), P(x1, y0 + 0.08, TOP), P(x1, y1 - 0.08, TOP), P(x0, y1 - 0.08, TOP)];
+    const legs = []; for (let x = x0 + (x0 === 0 ? 1.2 : 0.3); x < x1 - 1.2; x += 2.4) legs.push(x); legs.push(x1 - 0.3);
+    let h = k.shadow([P(x0, y1), P(x1, y1), P(x1, y1 + 0.45), P(x0, y1 + 0.45)], 0.12);
+    h += legs.map((x) => k.box(x, y0 + 0.06, 0, 0.12, 0.12, 0.62, PAL.steel)).join("");
+    h += k.box(x0, y0, 0.62, x1 - x0, BW, TOP - 0.62, PAL.steel) + k.wash(top, PAL.belt) + k.loop(top, { w: 1 });
+    h += legs.map((x) => k.box(x, y1 - 0.18, 0, 0.12, 0.12, 0.62, PAL.steel)).join("");
+    let lines = "";
+    for (let x = x0 - SLAT; x < x1; x += SLAT) { const a = P(x, y0 + 0.12, TOP), b = P(x, y1 - 0.12, TOP); lines += `M${f(a[0])} ${f(a[1])}L${f(b[0])} ${f(b[1])}`; }
+    h += `<defs><clipPath id="${id}"><path d="${path(top)}"/></clipPath></defs><g clip-path="url(#${id})"><g class="slats"><path d="${lines}" stroke="#c9c2b8" stroke-width="1.3" opacity=".75" fill="none"/></g></g>`;
+    const slats = k.node(layer, h).querySelector(".slats");
+    return { x0, x1, y, at: (x, z = TOP) => P(x, y, z), update(t) { const ph = (V * t) % SLAT; slats.setAttribute("transform", `translate(${f(ph * CS * U)} ${f(ph * SN * U)})`); } };
+  }
+  /* a low table with a wooden top, the same height as a line: somewhere to keep things */
+  function rack(layer, x0, x1, y) {
+    const y0 = y - BW / 2;
+    const legs = [x0 + 0.15, x1 - 0.27];
+    return k.node(layer, k.shadow([P(x0, y0 + BW), P(x1, y0 + BW), P(x1, y0 + BW + 0.45), P(x0, y0 + BW + 0.45)], 0.12)
+      + legs.map((x) => k.box(x, y0 + 0.06, 0, 0.12, 0.12, 0.72, PAL.woodDark)).join("")
+      + k.box(x0, y0, 0.72, x1 - x0, BW, TOP - 0.72, PAL.wood)
+      + legs.map((x) => k.box(x, y0 + BW - 0.18, 0, 0.12, 0.12, 0.72, PAL.woodDark)).join(""));
+  }
+  /* an open box on the floor; things dropped in go behind its front. Returns its middle. */
+  function bin(L, x, y, w, d, h, col) {
+    const c = k.crate(x, y, 0, w, d, h, col);
+    k.node(L.under, k.shadow([P(x, y + d), P(x + w, y + d), P(x + w, y + d + 0.35), P(x, y + d + 0.35)]) + c.under);
+    k.node(L.over, c.over);
+    return { x: x + w / 2, y: y + d / 2, h, mouth: P(x + w / 2, y + d / 2, h - 0.05), floor: P(x + w / 2, y + d / 2, 0.1) };
+  }
+
+  /* ----- a worker: a paper doll whose hands go where the work is ----- */
+  function worker(L, o) {
+    const foot = P(o.x, o.y, 0), look = o.look ?? 0, coat = o.coat ?? PAL.blue;
+    const body = k.node(L.dolls, `<g transform="scale(${MAN})">${k.doll({ look, coat })}</g>`);
+    const arms = k.SHOULDER.map(() => k.node(L.arms, `<g transform="scale(${MAN})">${k.arm({ look, coat })}</g>`));
+    const rest = [8, -8], cur = [{ a: 8, s: 1 }, { a: -8, s: 1 }];
+    let tilt = 0;
+    return {
+      foot, x: o.x, y: o.y, phase: o.phase ?? 0,
+      /* where the worker holds something up to look at it: beside the face, on the side of the line */
+      held: P(o.x - 0.3, o.y + 0.55, 1.1),
+      /* hands: a sheet point for each hand, or null to let that arm hang */
+      pose(now, dt, hands = [null, null]) {
+        const q = 1 - Math.exp(-dt * 16), aim = hands[0] || hands[1], [fx, fy] = foot;
+        tilt += ((aim ? Math.max(-5, Math.min(5, (aim[0] - fx) / 9)) : 0) - tilt) * q;
+        const lean = tilt + Math.sin(now * 1.7 + this.phase) * 0.8, bob = Math.sin(now * 2.2 + this.phase) * 0.6, a = (lean * Math.PI) / 180;
+        body.setAttribute("transform", `translate(${f(fx)} ${f(fy + bob)}) rotate(${lean.toFixed(2)})`);
+        k.SHOULDER.forEach(([sx, sy], i) => {
+          const x = fx + MAN * (sx * Math.cos(a) - sy * Math.sin(a)), y = fy + bob + MAN * (sx * Math.sin(a) + sy * Math.cos(a));
+          let ta = rest[i], ts = 1;
+          if (hands[i]) { const dx = hands[i][0] - x, dy = hands[i][1] - y; ta = (Math.atan2(-dx, dy) * 180) / Math.PI; ts = Math.max(0.7, Math.min(1.9, Math.hypot(dx, dy) / (24 * MAN))); }
+          let da = ta - cur[i].a; da -= Math.round(da / 360) * 360;
+          cur[i].a += da * q; cur[i].s += (ts - cur[i].s) * q;
+          arms[i].setAttribute("transform", `translate(${f(x)} ${f(y)}) rotate(${cur[i].a.toFixed(1)}) scale(1 ${cur[i].s.toFixed(3)})`);
+        });
+      },
+    };
+  }
+  /* both hands on a thing at sheet point p */
+  const grip = (p, r = 10) => (p ? [[p[0] - r, p[1] - r], [p[0] + r, p[1] - r]] : [null, null]);
+
+  /* ----- things that travel ----- */
+  const spark = (r) => `<path class="ink spark" d="M${f(-r * 1.25)} ${f(-r * 0.9)}L${f(-r * 1.75)} ${f(-r * 1.3)}M0 ${f(-r * 1.5)}L0 ${f(-r * 2.1)}M${f(r * 1.25)} ${f(-r * 0.9)}L${f(r * 1.75)} ${f(-r * 1.3)}" stroke-width="1.5"/>`;
+  /* a small paper tag on a pin above a thing r tall-ish: a time stamp or a name */
+  function flagArt(text, top, warn) {
+    const w = text.length * 8.6 + 12;
+    return `<path class="ink" d="M0 ${f(top)}L0 ${f(top - 9)}" stroke-width="1.1"/>`
+      + `<path d="M${f(-w / 2)} ${f(top - 27)}L${f(w / 2)} ${f(top - 27)}L${f(w / 2)} ${f(top - 9)}L${f(-w / 2)} ${f(top - 9)}Z" fill="${warn ? "#fbe1da" : PAL.white}" class="ink-f" stroke-width="1.1"${warn ? ' style="stroke:#c4604f"' : ""}/>`
+      + `<text class="flag-t${warn ? " warn" : ""}" x="0" y="${f(top - 13.2)}" text-anchor="middle">${text}</text>`;
+  }
+  function candyArt(it) {
+    const r = it.r * U, col = it.grey ? "#cfc8bd" : PAL[it.flavor], pts = [];
+    for (let i = 0; i < 14; i++) { const a = (i / 14) * Math.PI * 2, q = r * (1 + 0.03 * Math.sin(i * 2.4 + it.id)); pts.push([Math.cos(a) * q, Math.sin(a) * q]); }
+    const ball = k.curve(pts, true);
+    let h = `<ellipse class="cs" cx="${f(r * 0.25)}" cy="${f(r * 1.02)}" rx="${f(r * 1.05)}" ry="${f(r * 0.42)}" fill="#3d3631" opacity=".28"/>`;
+    if (it.wrapped) {
+      const tw = (s) => k.shape(`M${f(s * r * 0.8)} 0L${f(s * r * 1.85)} ${f(-r * 0.68)}L${f(s * r * 1.6)} 0L${f(s * r * 1.85)} ${f(r * 0.68)}Z`, k.lighter(col, 0.3), 1.2);
+      const band = `M${f(-r * 0.34)} ${f(-r * 0.93)}Q${f(-r * 0.05)} 0 ${f(-r * 0.34)} ${f(r * 0.93)}`, band2 = `${f(r * 0.34)} ${f(r * 0.93)}Q${f(r * 0.63)} 0 ${f(r * 0.34)} ${f(-r * 0.93)}`;
+      h += `<g transform="rotate(30)">${tw(-1)}${tw(1)}${k.shape(ball, col, 1.4)}<path d="${band}L${band2}Z" fill="${PAL.white}" opacity=".9"/><path class="ink" d="${band}M${band2}" stroke-width="1"/></g>`;
+    } else {
+      h += k.shape(ball, col, 1.4);
+      h += `<path d="M${f(-r * 0.55)} ${f(-r * 0.25)}Q${f(-r * 0.5)} ${f(-r * 0.62)} ${f(-r * 0.12)} ${f(-r * 0.66)}" stroke="#fffaf0" stroke-width="${f(r * 0.2)}" stroke-linecap="round" fill="none" opacity=".75"/>`;
+    }
+    return `<g transform="translate(0 ${f(-r)})">${h}${spark(r)}</g>` + (it.flag ? flagArt(it.flag, -2 * r - 1, it.warn) : "");
+  }
+  /* a paper cup, about as big as a candy */
+  function cupArt(it) {
+    const col = it.grey ? "#cfc8bd" : PAL[it.flavor], t = 14.5, b = 9.5, hgt = 21;
+    let h = `<ellipse class="cs" cx="3" cy="1" rx="13" ry="5" fill="#3d3631" opacity=".28"/>`;
+    h += k.shape(`M${-t} ${-hgt}L${-b} -2Q0 3 ${b} -2L${t} ${-hgt}Z`, col, 1.4);
+    h += `<path class="ink" d="M-5.5 ${-hgt + 4}L-3.6 -1M5.5 ${-hgt + 4}L3.6 -1M0 ${-hgt + 5}L0 0" stroke-width=".9" opacity=".6"/>`;
+    h += k.shape(`M${-t} ${-hgt}A${t} 5 0 1 0 ${t} ${-hgt}A${t} 5 0 1 0 ${-t} ${-hgt}Z`, k.darker(col, 0.35), 1.3);
+    return h + `<g transform="translate(0 -10)">${spark(13)}</g>` + (it.flag ? flagArt(it.flag, -hgt - 6, it.warn) : "");
+  }
+  const artOf = (it) => (it.kind === "cup" ? cupArt(it) : candyArt(it));
+  /* make a candy or a cup. o: { kind, flavor, small, flag: text on a tag, warn: a red tag, grey: no longer of use } */
+  function thing(layer, o) {
+    const it = { id: ++uid, kind: "candy", wrapped: false, ...o }; it.r = it.small ? R_SMALL : R;
+    it.el = k.node(layer, artOf(it));
+    return it;
+  }
+  const redraw = (it) => { it.el.innerHTML = artOf(it); };
+  /* put a thing at a sheet point. o: { s: scale, rot: degrees, air: off the line, busy: being worked on } */
+  function put(it, p, o = {}) {
+    it.pos = p;
+    it.el.setAttribute("transform", `translate(${f(p[0])} ${f(p[1])})${o.rot ? ` rotate(${o.rot.toFixed(1)})` : ""}${o.s != null && o.s !== 1 ? ` scale(${o.s.toFixed(3)})` : ""}`);
+    if (!!o.air !== !!it.air) { it.air = !!o.air; it.el.classList.toggle("air", it.air); }
+    if (!!o.busy !== !!it.busy) { it.busy = !!o.busy; it.el.classList.toggle("busy", it.busy); }
+  }
+  /* A report card: a piece of paper that stands up and faces the reader.
+     o.head: a first line of small text; o.parts: [{ flavor, n }]; o.pair: a flavor, drawn as a candy in its cup */
+  function cardArt(o) {
+    const parts = o.parts ?? [], w = Math.max(o.head ? o.head.length * 7.6 + 16 : 0, parts.length * 35 + 9, o.pair ? 40 : 0), h = (o.head ? 17 : 0) + (o.pair ? 36 : 27);
+    let s = `<ellipse class="cs" cx="3" cy="1.5" rx="${f(w * 0.46)}" ry="4.5" fill="#3d3631" opacity=".22"/><path class="ink" d="M${f(-w * 0.28)} -4L${f(-w * 0.28 - 3)} 1.5M${f(w * 0.28)} -4L${f(w * 0.28 + 3)} 1.5" stroke-width="1.5"/>`;
+    s += k.shape(`M${f(-w / 2)} ${-h - 4}L${f(w / 2)} ${-h - 4}L${f(w / 2)} -4L${f(-w / 2)} -4Z`, PAL.white, 1.3);
+    if (o.head) s += `<text class="card-h" x="0" y="${-h + 9.5}" text-anchor="middle">${o.head}</text>`;
+    parts.forEach((c, i) => { const x = -((parts.length - 1) * 35) / 2 + i * 35; s += k.dot(x - 8, -17.5, 6.5, PAL[c.flavor], 1.1) + `<text class="card-n" x="${f(x + 1.5)}" y="-12">${c.n}</text>`; });
+    if (o.pair) { const col = PAL[o.pair]; s += k.shape("M-11 -26L-7 -9Q0 -6 7 -9L11 -26Z", k.lighter(col, 0.15), 1.2) + k.shape("M-8.5 -27A8.5 8.5 0 1 1 8.5 -27Z", col, 1.2); }
+    return s;
+  }
+  const card = (layer, o) => { const c = { id: ++uid, ...o }; c.el = k.node(layer, cardArt(o)); return c; };
+
+  /* ----- small moves: an element travels from one sheet point to another, on an arc if wanted ----- */
+  function fly(el, a, b, t0, dur, o = {}) { const t = { el, a, b, t0, dur, ...o }; tweens.push(t); return t; }
+  function run(now) {
+    const cur = tweens; tweens = [];          // a move that ends may start the next one, so new moves collect in a fresh list
+    const keep = cur.filter((t) => {
+      const u = (now - t.t0) / t.dur; if (u < 0) return true;
+      const e = u >= 1 ? 1 : u * u * (3 - 2 * u), x = t.a[0] + (t.b[0] - t.a[0]) * e, y = t.a[1] + (t.b[1] - t.a[1]) * e - (t.arc ?? 0) * Math.sin(Math.PI * e);
+      t.el.style.display = "";
+      t.el.setAttribute("transform", `translate(${f(x)} ${f(y)})${t.scale ? ` scale(${(t.scale[0] + (t.scale[1] - t.scale[0]) * e).toFixed(3)})` : ""}`);
+      if (t.it) t.it.pos = [x, y];
+      if (u >= 1) { if (t.done) t.done(); return false; }
+      return true;
+    });
+    tweens = keep.concat(tweens);
+  }
+  const reset = () => { tweens = []; };
+  /* fall into a bin: over its edge, then down out of sight, then gone */
+  function drop(it, from, b, now, done) {
+    it.el.classList.add("air");
+    fly(it.el, from, b.mouth, now, 0.42, { arc: 26, it, done: () => fly(it.el, b.mouth, b.floor, now + 0.42, 0.22, { it, done: () => { it.el.remove(); if (done) done(); } }) });
+  }
+
+  return { FX, FY, WH, TOP, BW, V, MAN, R, R_SMALL, FLAVORS, NAMES, path, onLeft, onBack, panel, room, clockHands, belt, rack, bin, worker, grip,
+    thing, redraw, put, card, cardArt, flagArt, fly, run, reset, drop };
+};
+
 </script>
 <script>
 /* Story 01, The candy line.
    A stream is a line that never ends, an event is one candy, an operator is a worker on the line.
    The same candies come out of the kitchen in every scene; only the workers change. */
 (() => {
-  const V = 1.3;                                   // belt speed, room units per second
-  const FX = 13, FY = 6.4, WH = 3.7;              // the room: floor size and wall height
-  const X1 = 10.6, BY = 3.9, BW = 1.0, TOP = 0.9;  // the belt: from the hatch at x = 0 to X1, centred on y = BY
-  const WY = 2.95, MAN = 1.15;                     // workers stand just behind the belt; MAN is their size
-  const R = 0.3, R_SMALL = 0.18;
-  const FLAVORS = ["a", "b", "c"];
-  const PUSH = 0.6, FALL = 0.45, POP = 0.4, SLAT = 0.6;
-  const CLOCK = [5.9, 2.85, 0.6];                  // on the back wall: x, height, radius
+  const X1 = 10.6, BY = 3.9, WY = 2.95;   // the line ends at X1 and runs along y = BY; workers stand at y = WY, just behind it
+  const HOLD = 0.8, LIFT = 0.42;          // how long a worker has a candy in hand, and how high it is lifted
+  const CLOCK = [5.9, 2.85, 0.6];
 
   const SCENES = [
     { id: "line", label: "The line", stations: [{ kind: "watch", x: 5.2 }],
       story: "A stream is like this candy line. It has no last candy. Each one rolls out of the kitchen at its own moment, and the clock on the wall keeps the time. Nobody waits for the batch to be finished, because it never is." },
     { id: "inspector", label: "The inspector", stations: [{ kind: "filter", x: 5.2 }],
-      story: "A worker on the line looks at one candy at a time and decides on the spot. Big enough stays on the line. Too small goes in the bin. The worker needs no memory of the candies before. Engineers call this a filter." },
+      story: "A worker on the line picks up one candy at a time and decides on the spot. Big enough goes back on the line. Too small goes in the bin. The worker needs no memory of the candies before. Engineers call this a filter." },
     { id: "wrapper", label: "The wrapper", stations: [{ kind: "wrap", x: 5.2 }],
       story: "This worker changes every candy. One raw candy comes in, one wrapped candy goes out, and the line never stops for it. Engineers call this a transform." },
     { id: "both", label: "The whole line", stations: [{ kind: "filter", x: 3.4 }, { kind: "wrap", x: 7.4 }],
       story: "Workers stand in a row and each one does a small job. Raw candy goes in on the left and finished candy comes out on the right, a moment after it arrived. That is stream processing: the work happens while things move." },
   ];
 
-  let k, PAL, P, U, rnd, sc, L, items, stations, nextBorn, smallRun, lastFlavor, counts, serial, slats, hands;
-
-  /* ----- the room, drawn once ----- */
-  function room() {
-    const wallP = (y, z) => P(0, y, z), backP = (x, z) => P(x, 0, z);
-    let h = "";
-    h += k.box(-0.3, -0.3, -0.55, FX + 0.3, FY + 0.3, 0.37, PAL.base);
-    h += k.box(-0.3, -0.3, -0.18, FX + 0.3, FY + 0.3, 0.18, k.darker(PAL.floor, 0.12), { top: PAL.floor });
-    const joints = [];
-    for (let x = 1; x < FX; x++) joints.push([P(x, 0), P(x, FY)]);
-    for (let y = 1; y < FY; y++) joints.push([P(0, y), P(FX, y)]);
-    h += k.edges(joints, { w: 0.7, op: 0.22, over: 0, amp: 0.5 });
-    // two walls of a room cut open: the kitchen wall on the left, the back wall on the right
-    h += k.box(-0.3, -0.3, 0, 0.3, FY + 0.3, WH, PAL.wall);
-    h += k.box(0, -0.3, 0, FX, 0.3, WH, PAL.wall, { side: k.darker(PAL.wall, 0.09) });
-    // the hatch the line comes through, with its sill and jamb
-    const hy0 = BY - 0.72, hy1 = BY + 0.72, hz0 = 0.5, hz1 = 1.95;
-    h += k.wash([wallP(hy0, hz0), wallP(hy1, hz0), wallP(hy1, hz1), wallP(hy0, hz1)], PAL.dark);
-    h += k.wash([P(0, hy0, hz0), P(0, hy1, hz0), P(-0.3, hy1, hz0), P(-0.3, hy0, hz0)], k.darker(PAL.wall, 0.3));
-    h += k.wash([P(0, hy0, hz0), P(0, hy0, hz1), P(-0.3, hy0, hz1), P(-0.3, hy0, hz0)], k.darker(PAL.wall, 0.45));
-    h += k.loop([wallP(hy0, hz0), wallP(hy1, hz0), wallP(hy1, hz1), wallP(hy0, hz1)], { w: 1.4 });
-    h += k.shape("M" + [wallP(BY + 1.2, 2.2), wallP(BY - 1.2, 2.2), wallP(BY - 1.2, 2.8), wallP(BY + 1.2, 2.8)].map((p) => k.f(p[0]) + " " + k.f(p[1])).join("L") + "Z", PAL.white, 1.2);
-    const s0 = wallP(BY + 1.03, 2.34);
-    h += `<text class="sign" transform="matrix(${k.CS} ${-k.SN} 0 1 ${k.f(s0[0])} ${k.f(s0[1])})">KITCHEN</text>`;
-    // on the back wall: a window, the clock face, a shelf of jars, a door
-    h += k.wash([backP(1.2, 1.6), backP(3.3, 1.6), backP(3.3, 3.0), backP(1.2, 3.0)], PAL.glass);
-    h += k.loop([backP(1.2, 1.6), backP(3.3, 1.6), backP(3.3, 3.0), backP(1.2, 3.0)], { w: 1.5 });
-    h += k.edges([[backP(2.25, 1.6), backP(2.25, 3.0)], [backP(1.2, 2.4), backP(3.3, 2.4)]], { w: 1.1 });
-    h += k.edges([[backP(1.5, 1.85), backP(1.9, 2.2)], [backP(1.55, 2.05), backP(1.75, 2.22)], [backP(2.6, 2.6), backP(3.0, 2.85)]], { w: 0.8, op: 0.5, over: 0 });
-    const c0 = P(CLOCK[0], 0, CLOCK[1]), m = `matrix(${k.f(k.CS * U)} ${k.f(k.SN * U)} 0 ${-U} ${k.f(c0[0])} ${k.f(c0[1])})`;
-    let ticks = "";
-    for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2, r0 = CLOCK[2] * (i % 3 ? 0.84 : 0.74), r1 = CLOCK[2] * 0.92; ticks += `M${(Math.sin(a) * r0).toFixed(3)} ${(Math.cos(a) * r0).toFixed(3)}L${(Math.sin(a) * r1).toFixed(3)} ${(Math.cos(a) * r1).toFixed(3)}`; }
-    h += `<g transform="${m}"><circle r="${CLOCK[2] + 0.07}" fill="${PAL.dark}"/><circle r="${CLOCK[2]}" fill="${PAL.white}"/><path class="ink thin" d="${ticks}"/></g>`;
-    h += k.box(3.62, 0, 1.95, 1.56, 0.42, 0.08, PAL.wood);
-    FLAVORS.forEach((fl, i) => { h += k.cyl(3.92 + i * 0.48, 0.21, 2.03, 0.15, 0.36, PAL[fl]) + k.cyl(3.92 + i * 0.48, 0.21, 2.39, 0.16, 0.06, PAL.white); });
-    h += k.wash([backP(11.2, 0), backP(12.4, 0), backP(12.4, 2.5), backP(11.2, 2.5)], PAL.blue);
-    h += k.loop([backP(11.2, 0), backP(12.4, 0), backP(12.4, 2.5), backP(11.2, 2.5)], { w: 1.4 });
-    h += k.loop([backP(11.4, 1.4), backP(12.2, 1.4), backP(12.2, 2.3), backP(11.4, 2.3)], { w: 0.9, op: 0.7, over: 0.5 });
-    h += k.dot(...backP(12.2, 1.15), 2.6, PAL.yellow, 1.1);
-    // spare boxes against the back wall
-    h += k.shadow([P(8.6, 1.5), P(10.85, 1.5), P(10.85, 1.85), P(8.6, 1.85)]);
-    h += k.box(8.6, 0.5, 0, 1.1, 1.0, 0.8, PAL.wood) + k.box(8.75, 0.6, 0.8, 0.8, 0.8, 0.6, PAL.woodDark) + k.box(9.95, 0.45, 0, 0.9, 0.9, 0.7, PAL.wood);
-    // what the belt and the boxes throw on the floor
-    h += k.shadow([P(0, BY + 0.5), P(X1, BY + 0.5), P(X1, BY + 0.95), P(0, BY + 0.95)], 0.12);
-    k.still(h);
-  }
-
-  function beltParts() {
-    const y0 = BY - BW / 2, y1 = BY + BW / 2, top = [P(0, y0 + 0.08, TOP), P(X1, y0 + 0.08, TOP), P(X1, y1 - 0.08, TOP), P(0, y1 - 0.08, TOP)];
-    const legX = [1.2, 3.6, 6.0, 8.4, 10.3];
-    let h = legX.map((x) => k.box(x, y0 + 0.06, 0, 0.12, 0.12, 0.62, PAL.steel)).join("");
-    h += k.box(0, y0, 0.62, X1, BW, TOP - 0.62, PAL.steel);
-    h += k.wash(top, PAL.belt) + k.loop(top, { w: 1 });
-    h += legX.map((x) => k.box(x, y1 - 0.18, 0, 0.12, 0.12, 0.62, PAL.steel)).join("");
-    const d = "M" + top.map((p) => k.f(p[0]) + " " + k.f(p[1])).join("L") + "Z";
-    let lines = "";
-    for (let i = -1; i * SLAT < X1; i++) { const a = P(i * SLAT, y0 + 0.12, TOP), b = P(i * SLAT, y1 - 0.12, TOP); lines += `M${k.f(a[0])} ${k.f(a[1])}L${k.f(b[0])} ${k.f(b[1])}`; }
-    h += `<defs><clipPath id="belt-top"><path d="${d}"/></clipPath></defs><g clip-path="url(#belt-top)"><g id="slats"><path d="${lines}" stroke="#c9c2b8" stroke-width="1.3" opacity=".75" fill="none"/></g></g>`;
-    return h;
-  }
+  let k, F, P, U, rnd, sc, L, line, ship, hands, items, stations, nextBorn, smallRun, lastFlavor, counts;
 
   function station(def, i) {
-    const look = { watch: 0, filter: 1, wrap: 2 }[def.kind], coat = { watch: PAL.green, filter: PAL.blue, wrap: PAL.red }[def.kind];
-    const foot = P(def.x, WY, 0), st = { ...def, foot, act: -9, phase: i * 1.7 };
-    if (def.kind === "wrap") {              // a side table with a roll of wrapping paper
-      k.node(L.dolls, k.box(def.x + 0.75, WY - 0.75, 0, 0.9, 0.7, 0.8, PAL.wood) + k.cyl(def.x + 1.2, WY - 0.4, 0.8, 0.2, 0.45, PAL.white));
-    }
-    st.body = k.node(L.dolls, `<g transform="scale(${MAN})">${k.doll({ look, coat })}</g>`);
-    st.arms = k.SHOULDER.map((s, a) => k.node(L.arms, `<g transform="scale(${MAN})">${k.arm({ look, coat, tool: def.kind === "filter" && a === 0 ? "paddle" : null })}</g>`));
-    if (def.kind === "filter") {
-      st.bin = [def.x + 0.15, BY + 1.3, 1.2, 1.0, 0.7];
-      const c = k.crate(st.bin[0], st.bin[1], 0, st.bin[2], st.bin[3], st.bin[4], PAL.red);
-      k.node(L.under, k.shadow([P(st.bin[0], st.bin[1] + st.bin[3]), P(st.bin[0] + st.bin[2], st.bin[1] + st.bin[3]), P(st.bin[0] + st.bin[2], st.bin[1] + st.bin[3] + 0.35), P(st.bin[0], st.bin[1] + st.bin[3] + 0.35)]) + c.under);
-      k.node(L.over, c.over);
-    }
+    const PAL = k.PAL, look = { watch: 0, filter: 1, wrap: 2 }[def.kind], coat = { watch: PAL.green, filter: PAL.blue, wrap: PAL.red }[def.kind];
+    if (def.kind === "wrap") k.node(L.dolls, k.box(def.x + 0.8, WY - 0.75, 0, 0.9, 0.7, 0.8, PAL.wood) + k.cyl(def.x + 1.25, WY - 0.4, 0.8, 0.2, 0.45, PAL.white));   // a roll of wrapping paper
+    const st = { ...def, who: F.worker(L, { x: def.x, y: WY, look, coat, phase: i * 1.7 }), cur: null, let: -9 };
+    if (def.kind === "filter") st.bin = F.bin(L, def.x + 0.15, BY + 1.3, 1.2, 1.0, 0.7, PAL.red);
     return st;
   }
 
-  /* ----- candies ----- */
-  function candyArt(it) {
-    const r = it.r * U, col = PAL[it.flavor], pts = [];
-    for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2, q = r * (1 + 0.035 * Math.sin(i * 2.4 + it.id)); pts.push([Math.cos(a) * q, Math.sin(a) * q]); }
-    const ball = k.curve(pts, true);
-    let h = `<ellipse class="cs" cx="${k.f(r * 0.25)}" cy="${k.f(r * 1.02)}" rx="${k.f(r * 1.05)}" ry="${k.f(r * 0.42)}" fill="#3d3631" opacity=".28"/>`;
-    if (it.wrapped) {
-      const tw = (s) => k.shape(`M${k.f(s * r * 0.8)} 0L${k.f(s * r * 1.85)} ${k.f(-r * 0.68)}L${k.f(s * r * 1.6)} 0L${k.f(s * r * 1.85)} ${k.f(r * 0.68)}Z`, k.lighter(col, 0.3), 1.2);
-      h += `<g transform="rotate(30)">${tw(-1)}${tw(1)}${k.shape(ball, col, 1.4)}`;
-      h += `<path d="M${k.f(-r * 0.34)} ${k.f(-r * 0.93)}Q${k.f(-r * 0.05)} 0 ${k.f(-r * 0.34)} ${k.f(r * 0.93)}L${k.f(r * 0.34)} ${k.f(r * 0.93)}Q${k.f(r * 0.63)} 0 ${k.f(r * 0.34)} ${k.f(-r * 0.93)}Z" fill="${PAL.white}" opacity=".9"/>`;
-      h += `<path class="ink" d="M${k.f(-r * 0.34)} ${k.f(-r * 0.93)}Q${k.f(-r * 0.05)} 0 ${k.f(-r * 0.34)} ${k.f(r * 0.93)}M${k.f(r * 0.34)} ${k.f(-r * 0.93)}Q${k.f(r * 0.63)} 0 ${k.f(r * 0.34)} ${k.f(r * 0.93)}" stroke-width="1"/></g>`;
-    } else {
-      h += k.shape(ball, col, 1.4);
-      h += `<path d="M${k.f(-r * 0.55)} ${k.f(-r * 0.25)}Q${k.f(-r * 0.5)} ${k.f(-r * 0.62)} ${k.f(-r * 0.12)} ${k.f(-r * 0.66)}" stroke="#fffaf0" stroke-width="${k.f(r * 0.2)}" stroke-linecap="round" fill="none" opacity=".75"/>`;
-    }
-    return `<g transform="translate(0 ${k.f(-r)})">${h}</g>`;
-  }
-  function wrap(it) { it.wrapped = true; it.el.innerHTML = candyArt(it); }
   function newCandy(born) {
     let small = rnd() < 0.34;
     if (small && smallRun >= 2) small = false;
     smallRun = small ? smallRun + 1 : 0;
-    let fl = FLAVORS[Math.floor(rnd() * 3)];
-    if (fl === lastFlavor && rnd() < 0.6) fl = FLAVORS[(FLAVORS.indexOf(fl) + 1) % 3];
+    let fl = F.FLAVORS[Math.floor(rnd() * 3)];
+    if (fl === lastFlavor && rnd() < 0.6) fl = F.FLAVORS[(F.FLAVORS.indexOf(fl) + 1) % 3];
     lastFlavor = fl;
-    const it = { id: serial++, flavor: fl, small, r: small ? R_SMALL : R, state: "belt", done: 0, wrapped: false, pop: -9, born };
-    it.el = k.node(L.candy, ""); it.el.innerHTML = candyArt(it);
+    const it = F.thing(L.candy, { flavor: fl, small }); it.born = born; it.state = "line"; it.done = 0;
     items.push(it);
     return it;
   }
-  const gap = () => (rnd() < 0.22 ? 0.8 + rnd() * 0.25 : 1.3 + rnd() * 2.1);    // candies come unevenly, sometimes two close together
+  const gap = () => (rnd() < 0.2 ? 0.85 + rnd() * 0.2 : 1.3 + rnd() * 2.1);    // candies come unevenly, sometimes two close together
 
-  /* A candy meets every worker it has reached. quiet = before the story starts, so nothing is counted or animated. */
-  function meet(it, x, now, quiet) {
-    while (it.state === "belt" && it.done < stations.length && x >= stations[it.done].x) {
-      const st = stations[it.done++];
-      if (st.kind === "watch") { if (!quiet) counts.seen++; }
-      else if (st.kind === "filter") {
-        if (it.small) {
-          if (quiet) it.state = "gone";
-          else { it.state = "push"; it.t0 = now; it.from = x; it.bin = st.bin; st.act = now; counts.small++; }
-        } else if (!quiet) counts.passed++;
-      } else if (st.kind === "wrap") {
-        wrap(it);
-        if (!quiet) { it.pop = now; st.act = now; counts.wrapped++; }
-      }
-    }
+  /* what a worker does to the candy in hand */
+  function work(it, st, now, quiet) {
+    if (st.kind === "watch") { if (!quiet) counts.seen++; }
+    else if (st.kind === "wrap") { it.wrapped = true; F.redraw(it); if (!quiet) counts.wrapped++; }
+    else if (it.small) {
+      it.state = "out";
+      if (quiet) it.el.remove(); else { it.el.classList.remove("busy"); F.drop(it, it.pos, st.bin, now); st.let = now; st.toss = it; counts.small++; }
+    } else if (!quiet) counts.passed++;
   }
 
   function place(it, now) {
-    const x = V * (now - it.born);
-    let p, s = 1, air = false;
-    if (it.state === "belt") {
-      meet(it, x, now, false);
-      if (it.state === "belt" && x >= X1) { it.state = "fall"; it.t0 = now; }
+    if (it.state !== "line") return;
+    const x = F.V * (now - it.born), next = stations[it.done];
+    if (!it.act && next && x >= next.x - (F.V * HOLD) / 2) { it.act = { st: next, t0: now, did: false }; next.cur = it; it.done++; }
+    let z = F.TOP, o = {};
+    if (it.act) {
+      const a = it.act, u = (now - a.t0) / HOLD, light = a.st.kind === "watch";
+      z += (light ? 0.14 : LIFT) * Math.sin(Math.PI * Math.min(1, u));
+      o = { air: !light, busy: !light && u > 0.2 && u < 0.85, rot: a.st.kind === "wrap" ? 12 * Math.sin(u * Math.PI * 4) : 0, s: a.st.kind === "wrap" && a.did ? 1 + 0.3 * Math.sin(Math.PI * Math.min(1, (u - 0.5) * 2.4)) : 1 };
+      if (u >= 0.5 && !a.did) { a.did = true; work(it, a.st, now, false); if (it.state !== "line") { a.st.cur = null; return; } }
+      if (u >= 1) { it.act = null; if (a.st.cur === it) a.st.cur = null; o = {}; z = F.TOP; }
     }
-    if (it.state === "belt") {
-      p = P(x, BY, TOP);
-      const u = (now - it.pop) / POP;
-      if (u >= 0 && u < 1) s = 1 + 0.4 * Math.sin(Math.PI * u);
-      it.el.style.opacity = Math.max(0, Math.min(1, (x - 0.05) / 0.3));
-    } else if (it.state === "push") {         // off the line, over the edge and into the bin
-      const u = (now - it.t0) / PUSH, e = Math.min(1, u), b = it.bin, sink = Math.max(0, u - 1) / 0.35;
-      if (sink >= 1) { it.state = "gone"; return; }
-      p = P(it.from + (b[0] + b[2] / 2 - it.from) * e, BY + (b[1] + b[3] / 2 - BY) * e, TOP + (b[4] - 0.05 - TOP) * e + 0.75 * Math.sin(Math.PI * e) - sink * 0.55);
-      air = true;
-    } else if (it.state === "fall") {         // off the end of the line, into the shipping box
-      const u = (now - it.t0) / FALL, e = Math.min(1, u), sink = Math.max(0, u - 1) / 0.35;
-      if (sink >= 1) { it.state = "gone"; return; }
-      p = P(X1 + 1.15 * e, BY, TOP + 0.25 * Math.sin(Math.PI * e) - 0.2 * e - sink * 0.5);
-      air = true;
-    } else return;
-    it.el.setAttribute("transform", `translate(${k.f(p[0])} ${k.f(p[1])})${s !== 1 ? ` scale(${s.toFixed(3)})` : ""}`);
-    if (air !== it.air) { it.air = air; it.el.classList.toggle("air", air); }
+    if (x >= X1) { it.state = "out"; F.drop(it, P(X1, BY, F.TOP), ship, now); return; }
+    F.put(it, P(x, BY, z), o);
+    it.el.style.opacity = Math.max(0, Math.min(1, (x - 0.05) / 0.3));
   }
 
-  function workers(now) {
+  function workers(now, dt) {
     stations.forEach((st) => {
-      // the candy this worker is dealing with: the nearest one that has not gone past yet
-      let near = 9;
-      items.forEach((it) => { if (it.state !== "belt") return; const d = st.x - V * (now - it.born); if (d > -0.5 && Math.abs(d) < Math.abs(near)) near = d; });
-      const busy = Math.max(0, 1 - (now - st.act) / 0.5);
-      const ready = st.kind === "watch" ? 0 : Math.max(0, 1 - Math.abs(near) / 0.9) * 0.6;
-      const reach = Math.max(busy, ready);
-      const lean = -5 * reach + Math.sin(now * 1.7 + st.phase) * 0.8, bob = Math.sin(now * 2.2 + st.phase) * 0.6;
-      const [fx, fy] = st.foot, a = (lean * Math.PI) / 180;
-      st.body.setAttribute("transform", `translate(${k.f(fx)} ${k.f(fy + bob)}) rotate(${lean.toFixed(2)})`);
-      const turn = [
-        8 + 62 * reach + (st.kind === "filter" ? 12 * busy : 0),
-        -8 + (st.kind === "wrap" ? 72 : st.kind === "filter" ? 30 : 0) * reach,
-      ];
-      k.SHOULDER.forEach(([sx, sy], i) => {
-        const x = fx + MAN * (sx * Math.cos(a) - sy * Math.sin(a)), y = fy + bob + MAN * (sx * Math.sin(a) + sy * Math.cos(a));
-        st.arms[i].setAttribute("transform", `translate(${k.f(x)} ${k.f(y)}) rotate(${turn[i].toFixed(1)})`);
-      });
+      let h = [null, null];
+      const it = st.cur, r = it ? it.r * U : 0;
+      if (it && it.pos) h = st.kind === "watch" ? [[it.pos[0] - 2, it.pos[1] - 2 * r - 2], null] : F.grip([it.pos[0], it.pos[1] - r], r * 0.9);
+      else if (st.toss && now - st.let < 0.2 && st.toss.pos) h = F.grip(st.toss.pos, 8);     // the hands follow a candy they throw away
+      st.who.pose(now, dt, h);
     });
   }
 
-  /* ----- labels: each scene names only what it is about ----- */
+  /* labels: each scene names only what it is about */
   function labels() {
-    const first = stations[0], last = stations[stations.length - 1], head = (st) => [st.foot[0] + 15 * MAN, st.foot[1] - 60 * MAN];
+    const first = stations[0], last = stations[stations.length - 1], head = (st) => [st.who.foot[0] + 15 * F.MAN, st.who.foot[1] - 60 * F.MAN];
     const list = [
       { title: "KITCHEN", note: "candies come out one by one", x: 56, y: 150, side: "start", to: P(0, BY + 0.3, 1.7) },
-      { title: "THE LINE", note: "never stops, never ends", x: 56, y: 486, side: "start", to: P(1.9, BY + 0.5, TOP) },
+      { title: "THE LINE", note: "never stops, never ends", x: 56, y: 486, side: "start", to: P(1.9, BY + 0.5, F.TOP) },
       { title: "CLOCK", note: "every candy has its moment", x: 1344, y: 130, side: "end", to: P(CLOCK[0] + 0.45, 0, CLOCK[1] + 0.2) },
       { title: "SHIPPING", note: "out as soon as it is ready", x: 1344, y: 650, side: "end", to: P(X1 + 1.9, BY + 0.2, 0.55) },
     ];
     const who = (st, title, note, y) => list.push({ title, note, x: 1344, y, side: "end", to: head(st) });
-    if (sc.id === "line") who(first, "WORKER", "sees each candy as it passes", 300);
+    if (sc.id === "line") who(first, "WORKER", "gives each candy a pat as it passes", 300);
     if (sc.id === "inspector") who(first, "INSPECTOR", "one look, one decision", 300);
     if (sc.id === "wrapper") who(first, "WRAPPER", "one in, one out, changed", 300);
     if (sc.id === "both") { who(first, "INSPECTOR", "first job: pick", 250); who(last, "WRAPPER", "second job: wrap", 380); }
-    const f = stations.find((s) => s.kind === "filter");
-    if (f) list.push({ title: "TOO SMALL", note: "off the line, for good", x: 56, y: 660, side: "start", to: P(f.bin[0] + 0.15, f.bin[1] + f.bin[3], 0.45) });
+    const fl = stations.find((s) => s.bin);
+    if (fl) list.push({ title: "TOO SMALL", note: "off the line, for good", x: 56, y: 660, side: "start", to: P(fl.bin.x - 0.45, fl.bin.y + 0.5, 0.45) });
     k.setLabels(list);
   }
 
   function init(kit, scene) {
-    k = kit; PAL = kit.PAL; P = kit.P; U = kit.U; sc = scene; rnd = kit.rng(7);
-    items = []; smallRun = 0; lastFlavor = null; serial = 0; counts = { seen: 0, passed: 0, small: 0, wrapped: 0 };
-    room();
+    k = kit; F = Factory(kit); P = kit.P; U = kit.U; sc = scene; rnd = kit.rng(7);
+    items = []; smallRun = 0; lastFlavor = null; counts = { seen: 0, passed: 0, small: 0, wrapped: 0 };
+    F.room({ window: [1.2, 3.3], clock: CLOCK, door: 11.2 });
     // the moving part of the sheet, back to front
     L = { clock: k.layer(), dolls: k.layer(), belt: k.layer(), under: k.layer(), candy: k.layer(), arms: k.layer(), over: k.layer() };
-    const c0 = P(CLOCK[0], 0, CLOCK[1]);
-    hands = k.node(L.clock, `<line class="ink thin" x1="0" y1="0" stroke-width="2.2"/><line class="ink thin" x1="0" y1="0" stroke-width="1.4" style="stroke:#c4604f"/><circle r=".05" fill="${k.INK}"/>`, `transform="matrix(${k.f(k.CS * U)} ${k.f(k.SN * U)} 0 ${-U} ${k.f(c0[0])} ${k.f(c0[1])})"`).querySelectorAll("line");
-    k.node(L.belt, beltParts()); slats = document.querySelector("#slats");
+    hands = F.clockHands(L.clock, CLOCK);
+    line = F.belt(L.belt, 0, X1, BY);
     stations = scene.stations.map(station);
-    const ship = k.crate(X1 + 0.4, BY - 0.7, 0, 1.5, 1.4, 0.75, PAL.wood);
-    k.node(L.under, k.shadow([P(X1 + 0.4, BY + 0.7), P(X1 + 1.9, BY + 0.7), P(X1 + 1.9, BY + 1.05), P(X1 + 0.4, BY + 1.05)]) + ship.under);
-    k.node(L.over, ship.over);
+    ship = F.bin(L, X1 + 0.4, BY - 0.7, 1.5, 1.4, 0.75, k.PAL.wood);
     k.labelLayer(); labels();
     k.focus([246, 24, 908, 760]);
     // the line is already running when the story opens: candies made in the last seconds are on their way
-    nextBorn = -X1 / V + 0.4;
-    while (nextBorn <= 0) { const it = newCandy(nextBorn); meet(it, V * (0 - it.born), 0, true); nextBorn += gap(); }
+    nextBorn = -X1 / F.V + 0.4;
+    while (nextBorn <= 0) {
+      const it = newCandy(nextBorn), x = -F.V * it.born;
+      while (it.state === "line" && it.done < stations.length && x >= stations[it.done].x) work(it, stations[it.done++], 0, true);
+      nextBorn += gap();
+    }
     tick(0, 0);
   }
 
   function tick(dt, now) {
     while (nextBorn <= now) { newCandy(nextBorn); nextBorn += gap(); }
     items.forEach((it) => place(it, now));
-    items = items.filter((it) => { if (it.state === "gone") it.el.remove(); return it.state !== "gone"; });
-    workers(now);
-    const ph = (V * now) % SLAT;
-    slats.setAttribute("transform", `translate(${k.f(ph * k.CS * U)} ${k.f(ph * k.SN * U)})`);
-    const hand = (el, turn, len) => { const a = turn * Math.PI * 2; el.setAttribute("x2", (Math.sin(a) * len).toFixed(3)); el.setAttribute("y2", (Math.cos(a) * len).toFixed(3)); };
-    hand(hands[0], now / 3600, CLOCK[2] * 0.5); hand(hands[1], now / 60, CLOCK[2] * 0.8);
+    items = items.filter((it) => it.state === "line");
+    F.run(now);
+    workers(now, dt);
+    line.update(now); hands(now);
   }
 
   function status() {

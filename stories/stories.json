@@ -8,5 +8,25 @@
     "sub": "one line · one clock · no last candy",
     "description": "A small candy factory shows what a stream is and what a worker on it does: filter and transform, one candy at a time.",
     "engineer": "01-transform"
+  },
+  {
+    "num": 2,
+    "slug": "02-tally-board",
+    "name": "The tally board",
+    "title": "The Tally Board",
+    "h1": "The tally board",
+    "sub": "count while it moves · one card at a time",
+    "description": "A candy factory shows how a stream is counted: a tally board as memory, a card on a timer or on every change, time slots, late candies and waiting.",
+    "engineer": "02-aggregation"
+  },
+  {
+    "num": 3,
+    "slug": "03-two-lines",
+    "name": "Two lines meet",
+    "title": "Two Lines Meet",
+    "h1": "Two lines meet",
+    "sub": "candies and cups · one pair at a time · racks that must not fill",
+    "description": "A candy factory shows how two streams are joined: a chart on the wall, two lines with racks that fill up, a rule about time, and keeping only the newest.",
+    "engineer": "03-join"
   }
 ]

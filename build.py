@@ -48,7 +48,8 @@ def stories(links, eps, fragment, out):
     """Stream Stories live in stories/ and are written as story-<slug>.html."""
     src = ROOT / "stories"
     items = json.loads((src / "stories.json").read_text())
-    shell, css, core = ((src / "src/story-shell.html").read_text(), (src / "src/story.css").read_text(), (src / "src/story.js").read_text())
+    shell, css, core = ((src / "src/story-shell.html").read_text(), (src / "src/story.css").read_text(),
+                        (src / "src/story.js").read_text() + "\n" + (src / "src/factory.js").read_text())
     ready = [s for s in items if (src / "episodes" / s["slug"] / "episode.js").exists()]
     for i, st in enumerate(ready):
         def nav(o, arrow_left):

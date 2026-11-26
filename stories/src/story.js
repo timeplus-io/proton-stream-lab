@@ -194,6 +194,8 @@ const Story = (() => {
       seed: (s) => { rand = rng(s); },
       /* the part of the sheet a phone shows: [x, y, w, h] */
       focus: (v) => { tight = v; layout(); },
+      /* start the scene again from 12:00:00 */
+      restart: () => load(sceneDef),
     };
     function load(s) {
       sceneDef = s; now = 0; labelLayer = null; labels = []; rand = rng(3);
