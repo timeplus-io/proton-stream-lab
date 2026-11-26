@@ -11,7 +11,8 @@
   const OP = { x: 288, y: 50, w: 264, h: 304, cx: 420 };
   const AXIS_Y = 376;
   const TB = { w: 232, h: 96 };          // a table inside the operator
-  const CHIP = { w: 62, h: 19, gap: 5, row: 22, cap: 3 };   // a stored row; cap = chips that fit in one device's row
+  const CHIP = { w: 98, h: 19, gap: 6, row: 22, cap: 2 };   // a stored row; cap = chips that fit in one device's row
+  const FULL = CHIP.cap * KEYS.length;   // rows that fill one table
   const MIN_GAP = (CW + 14) / V;
   const AHEAD = (OP.cx + CW) / V;
   const LAND = 2.0;       // seconds before arrival when a card starts to shrink into its place in the table
@@ -20,7 +21,7 @@
   const LOOKUP = 0.7;     // seconds a looked-up row takes to reach the card that asked for it
   const SLOT = (CW + 8) / V;   // records emitted together leave one card apart
   const RANGE = 5;        // date_diff_within(5s)
-  const LIMIT = 12;       // buffered rows at which the unbounded join is aborted (stands in for join_max_buffered_bytes)
+  const DRAIN = 4.5;      // seconds between the row that fills the tables and the row that no longer fits
   const HOLD = 3;         // seconds the aborted query stays on screen before the demo starts over
   const t8 = (t) => Lab.hms(t).slice(0, 8);
 
@@ -44,7 +45,7 @@
       id: "all", label: "Stream + stream", kind: "all", rule: "ON device, keep every row", warm: 6,
       gaps: { L: "mid", R: "mid" }, tables: { L: "temps rows", R: "humidity rows" }, lanes: BOTH,
       sql: SEL + "JOIN humidity AS h ON t.device = h.device",
-      note: "Now both sides are streams: temperatures (<code>t</code>) on the upper lane, humidity readings (<code>h</code>) on the lower lane, each at its own pace. A match can come from either side at any time, so the operator has to keep every row of both streams, each in its own table. A new row is joined with all rows of the same device in the other table. Nothing is ever removed, so the state only grows. Proton aborts the query when the buffered rows pass <code>join_max_buffered_bytes</code>; here that happens at 12 rows, and the demo starts over.",
+      note: "Now both sides are streams: temperatures (<code>t</code>) on the upper lane, humidity readings (<code>h</code>) on the lower lane, each at its own pace. A match can come from either side at any time, so the operator has to keep every row of both streams, each in its own table. A new row is joined with all rows of the same device in the other table. Nothing is ever removed, so the state only grows. Proton aborts the query when the buffered rows pass <code>join_max_buffered_bytes</code>; here the limit is what the two tables can hold. When both are full, the next row has no room: the query is aborted and the demo starts over.",
     },
     {
       id: "range", label: "Within 5s", kind: "range", rule: "ON device, within 5s", warm: 16, echo: 0.45,
@@ -61,7 +62,7 @@
   ];
   const lookup = () => mode.kind === "table" || mode.kind === "latest";   // only the right side is stored
 
-  let svgRef, L, mode, gen, lefts, t0, halt, clock, lastSeen, lastArrive, outFree;
+  let svgRef, L, mode, gen, lefts, t0, halt, clock, lastSeen, lastArrive, outFree, lastStored, overflow;
   let inputs, outs, drops, flies, tbl, clockTxt, opBox, ruleTxt, warming;
 
   function newEvent(side, at) {
@@ -90,7 +91,7 @@
   function build() {
     const svg = svgRef;
     svg.selectAll("*").interrupt().remove();
-    halt = null; clock = 0; lefts = [];
+    halt = null; clock = 0; lefts = []; lastStored = -Infinity; overflow = false;
     inputs = []; outs = []; drops = []; flies = [];
     lastSeen = { L: null, R: null }; lastArrive = -9; outFree = -Infinity;
     svg.attr("viewBox", `0 0 ${W} ${H}`);
@@ -142,10 +143,10 @@
 
   /* ----- tables and chips ----- */
   const chipPos = (side, key, i) => [
-    OP.cx - TB.w / 2 + 12 + CHIP.w / 2 + i * (CHIP.w + CHIP.gap),
+    OP.cx - (CHIP.cap * (CHIP.w + CHIP.gap) - CHIP.gap) / 2 + CHIP.w / 2 + i * (CHIP.w + CHIP.gap),
     LANE[side] - TB.h / 2 + 27 + KEYS.indexOf(key) * CHIP.row + CHIP.h / 2,
   ];
-  const chipLabel = (ev) => (ev.tag ? `${ev.tag} ${ev.val}${ev.side === "L" ? "°" : "%"}` : ev.val);
+  const chipLabel = (ev) => (ev.tag ? `${ev.tag} · ${ev.val} ${ev.side === "L" ? "°C" : "%"}` : `${ev.key} · ${ev.val}`);
   function chip(layer, ev, [x, y]) {
     const g = layer.append("g").attr("class", "chip").attr("transform", `translate(${x},${y})`);
     g.append("rect").attr("x", -CHIP.w / 2).attr("y", -CHIP.h / 2).attr("width", CHIP.w).attr("height", CHIP.h)
@@ -155,7 +156,6 @@
   }
   const outline = (g, color) => g.select("rect").interrupt().style("stroke", color).style("stroke-width", 3);
   const flashChip = (g) => { if (!warming) outline(g, "var(--accent)").transition().duration(800).style("stroke-width", 0); };
-  const buffered = () => d3.sum(Object.values(tbl), (t) => d3.sum(KEYS, (k) => t[k].length));
 
   /* Remember a row: it becomes a chip in its side's table, in its device's row. */
   function store(ev, replace) {
@@ -222,6 +222,12 @@
       fly(r, () => [OP.cx + V * (clock - o.T), LANE.L], ev.at, LOOKUP, 0);
       return;
     }
+    if (ev.over) {                        // both tables are full: this row has no room, and the query is aborted
+      L.top.node().appendChild(c.g.node());
+      c.g.classed("dropped", true);
+      halt = ev.at;
+      return;
+    }
     // both sides are stored; the new row is joined with the rows of the same device in the other table
     c.g.remove();
     const other = ev.side === "L" ? "R" : "L";
@@ -229,7 +235,7 @@
     const mine = store(ev);
     emit(matches.map((r) => (ev.side === "L" ? [mine, r] : [r, mine])), ev.at);
     if (mode.kind === "range") { lastSeen[ev.side] = ev.et; evict(); }
-    if (mode.kind === "all" && buffered() >= LIMIT) halt = ev.at;
+
   }
 
   /* Range join cleanup. The join's watermark is the slower of the two streams (MemoryHashJoin::calculateWatermark);
@@ -257,7 +263,18 @@
   function step(now) {
     Object.entries(gen).forEach(([side, g]) => {
       while (g.next < now + AHEAD) {
+        let over = false;
+        if (mode.kind === "all" && g.seq >= FULL) {
+          // This stream's table is full. It stays quiet until the other table is full too;
+          // then one more row arrives, late enough that every record already joined has left.
+          const other = gen[side === "L" ? "R" : "L"];
+          if (overflow || other.seq < FULL) { g.next += g.gap(g.rnd); continue; }
+          g.next = Math.max(g.next, lastStored + DRAIN);
+          overflow = over = true;
+        }
         const ev = newEvent(side, g.next);
+        ev.over = over;
+        if (!over) lastStored = Math.max(lastStored, ev.at);
         inputs.push({ ev, g: Lab.card(L.in, ev) });
         g.next += g.gap(g.rnd);
       }
@@ -301,8 +318,11 @@
       let x = OP.cx - V * dt, y = LANE[ev.side], sc = 1;
       if (tbl[ev.side] && dt < LAND) {
         const u = 1 - dt / LAND, e = u * u * (3 - 2 * u);
-        const [tx, ty] = chipPos(ev.side, ev.key, lookup() ? 0 : tbl[ev.side][ev.key].length);
-        x += (tx - OP.cx) * e; y += (ty - y) * e; sc = 1 - (1 - CHIP.w / CW) * u * (2 - u);   // shrinks first, then glides in
+        if (ev.over) x += (OP.cx - TB.w / 2 - CW / 2 - 8 - OP.cx) * e;   // no room: it stops at the table's edge
+        else {
+          const [tx, ty] = chipPos(ev.side, ev.key, lookup() ? 0 : tbl[ev.side][ev.key].length);
+          x += (tx - OP.cx) * e; y += (ty - y) * e; sc = 1 - 0.5 * u * (2 - u);   // shrinks first, then glides in
+        }
       }
       c.g.attr("transform", `translate(${x},${y}) scale(${sc})`);
     });
