@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Streaming Join Lab</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Animated explainer of Proton streaming joins: latest join, bidirectional join and range join.">
+<meta name="description" content="Animated explainer of Proton streaming joins: stream join table, stream join stream, range join and latest join.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap">
@@ -269,8 +269,8 @@ const Lab = (() => {
 
 </script>
 <script>
-/* Episode 3: streaming join. Same stage as episode 2, but two input streams feed one operator.
-   Temperatures (rounded cards) ride the upper input line, humidity (square cards) the lower one.
+/* Episode 3: streaming join. Same stage as episode 2, but the operator has two inputs.
+   The left stream (rounded cards) rides the upper input line, the right side (square cards) the lower one.
    Each card turns onto its device's row and lands on that device's state card;
    a joined record grows out of the state card and stays on that row. */
 (() => {
@@ -294,23 +294,30 @@ const Lab = (() => {
   const t8 = (t) => Lab.hms(t).slice(0, 8);
 
   const SEL = "SELECT t.device, t.temperature, h.humidity FROM temps AS t ";
+  const TABLE = [["A", "lab"], ["B", "roof"], ["C", "dock"]];   // the devices table: device, room
   const modes = [
     {
-      id: "latest", label: "Latest", kind: "latest", rule: "ON device, latest humidity", pRight: 0.35, pair: 0, warm: 16,
-      sql: SEL + "LATEST JOIN humidity AS h ON t.device = h.device",
-      note: "A join reads two streams: temperatures on the upper line (rounded cards) and humidity on the lower line (square cards). Here only the <b>right</b> stream is remembered, one row per device, always the latest. A temperature card is not stored: it looks up its device's row and leaves at once as a joined record. A new humidity card only replaces the stored row and emits nothing.",
+      id: "table", label: "Stream + table", kind: "table", rule: "ON device, table lookup", pRight: 0, pair: 0, warm: 0,
+      sql: "SELECT t.device, t.temperature, d.room FROM temps AS t JOIN table(devices) AS d ON t.device = d.device",
+      note: "The simplest join enriches a stream from a table. When the query starts, the table is read once (the three square cards) and kept in the operator, one row per device. After that only the stream moves: each temperature card looks up its device's row and leaves at once as a joined record. The stream itself is never stored, so the state stays as small as the table. Later changes to the table are not seen.",
     },
     {
-      id: "all", label: "Both sides", kind: "all", rule: "ON device, every row", pRight: 0.5, pair: 0.35, warm: 5,
+      id: "all", label: "Stream + stream", kind: "all", rule: "ON device, every row", pRight: 0.5, pair: 0.35, warm: 5,
       sql: SEL + "JOIN humidity AS h ON t.device = h.device",
-      note: "A plain <code>JOIN</code> of two append streams works in both directions. Every row of both streams is stored, and each new row is joined with <i>all</i> stored rows of the other stream for its device, so one arrival can emit several records. Nothing is ever removed. Proton aborts the query once the buffered rows pass <code>join_max_buffered_bytes</code>; here that happens at 20 rows, and the demo starts over.",
+      note: "Now the right side is a stream too: humidity readings on the lower line. A plain <code>JOIN</code> of two append streams works in both directions. Every row of both streams is stored, and each new row is joined with <i>all</i> stored rows of the other stream for its device, so one arrival can emit several records. Nothing is ever removed. Proton aborts the query once the buffered rows pass <code>join_max_buffered_bytes</code>; here that happens at 20 rows, and the demo starts over.",
     },
     {
       id: "range", label: "Within 5s", kind: "range", rule: "ON device, within 5s", pRight: 0.5, pair: 0.35, warm: 16,
       sql: SEL + "JOIN humidity AS h ON t.device = h.device AND date_diff_within(5s)",
       note: "A time bound stops the growth. Two rows match only if their times are at most 5 seconds apart. Once <i>both</i> streams have moved more than 5 seconds past a row it can never match again, so it is removed from the state (the number turns gold). The join's watermark is the slower of the two streams, so if one stream goes quiet, the cleanup waits for it.",
     },
+    {
+      id: "latest", label: "Latest", kind: "latest", rule: "ON device, latest humidity", pRight: 0.35, pair: 0, warm: 16,
+      sql: SEL + "LATEST JOIN humidity AS h ON t.device = h.device",
+      note: "<code>LATEST JOIN</code> is the lookup of the first tab, but against a live stream instead of a table. Only the right stream is remembered, one row per device, always the latest. A temperature card is not stored: it looks up its device's row and leaves at once as a joined record. A new humidity card only replaces the stored row and emits nothing.",
+    },
   ];
+  const lookup = () => mode.kind === "table" || mode.kind === "latest";   // only the right side is stored
 
   let svgRef, L, mode, rnd, seq, nextAt, prev, t0, halt, lastSeen, lastArrive, outFree;
   let inputs, outs, drops, state, clockTxt, opBox, ruleTxt;
@@ -357,8 +364,15 @@ const Lab = (() => {
     opBox = L.box.append("rect").attr("class", "op").attr("x", OP.x).attr("y", OP.y).attr("width", OP.w).attr("height", OP.h).attr("rx", 16);
     ruleTxt = L.box.append("text").attr("class", "op-rule").attr("x", OP.cx).attr("y", OP.y + 22).text(mode.rule);
 
-    // warm up, so the first frame already shows state and output
     nextAt = -mode.warm;
+    if (mode.kind === "table") {          // the table is read once when the query starts, before any stream row is joined
+      TABLE.forEach(([key, room], i) => {
+        const ev = { key, side: "R", title: `device ${key}`, val: room, valText: room, timeText: "table row", at: 1 + i * MIN_GAP, et: 0 };
+        inputs.push({ ev, g: Lab.card(L.in, ev) });
+      });
+      nextAt = 1 + TABLE.length * MIN_GAP + 0.4;
+    }
+    // warm up, so the first frame already shows state and output
     for (let t = -mode.warm; t < 0; t += 0.1) step(t);
     step(0); render(0);
   }
@@ -373,13 +387,16 @@ const Lab = (() => {
     return state.get(key);
   }
   function showState(s) {
-    if (mode.kind === "latest") Lab.setState(s.g, [{ l: "humidity", r: `${s.R[0].val} %` }]);
+    if (mode.kind === "table") Lab.setState(s.g, [{ l: "room", r: s.R[0].val }]);
+    else if (mode.kind === "latest") Lab.setState(s.g, [{ l: "humidity", r: `${s.R[0].val} %` }]);
     else Lab.setState(s.g, [{ l: "temps", r: s.L.length }, { l: "humidity", r: s.R.length }]);
   }
   const buffered = () => d3.sum([...state.values()], (s) => s.L.length + s.R.length);
 
   /* A joined record: left row + right row of the same device. Rounded on the left, square on the right. */
-  const joined = (l, r) => ({ key: l.key, side: "J", title: `#${l.id} + #${r.id} · ${l.key}`, valText: `${l.val}° · ${r.val}%` });
+  const joined = (l, r) => (mode.kind === "table"
+    ? { key: l.key, side: "J", title: `#${l.id} · device ${l.key}`, valText: `${l.val}° · ${r.val}` }
+    : { key: l.key, side: "J", title: `#${l.id} + #${r.id} · ${l.key}`, valText: `${l.val}° · ${r.val}%` });
 
   /* One card per joined record, on its device's row, at its emit time.
      Records emitted together on one row leave one after another. */
@@ -395,15 +412,15 @@ const Lab = (() => {
   function arrive(c) {
     const ev = c.ev;
     lastArrive = ev.at;
-    if (mode.kind === "latest") {
-      if (ev.side === "R") {              // the right side is stored: one row per device, the latest wins
+    if (lookup()) {
+      if (ev.side === "R") {              // the right side is stored: one row per device (for a stream, the latest wins)
         c.g.remove();
         const s = ensureState(ev.key);
         s.R = [ev]; showState(s); Lab.flash(s.g, 0);
         return;
       }
       const s = state.get(ev.key);        // the left side only looks up
-      if (!s) {                           // INNER join: no humidity row for this device yet, nothing is emitted
+      if (!s) {                           // INNER join: no right row for this device, nothing is emitted
         L.top.node().appendChild(c.g.node());
         c.g.classed("dropped", true);
         drops.push({ g: c.g, at: ev.at, y: ROW[ev.key] });
@@ -498,8 +515,7 @@ const Lab = (() => {
 
   const legend = [
     { key: "A", label: "device A" }, { key: "B", label: "device B" }, { key: "C", label: "device C" },
-    { cls: "round", label: "rounded = temps" }, { cls: "square", label: "square = humidity" },
-    { cls: "state", label: "hollow = state" },
+    { cls: "round", label: "left side" }, { cls: "square", label: "right side" }, { cls: "state", label: "state" },
   ];
   window.addEventListener("DOMContentLoaded", () => Lab.start({ modes, init, tick, legend, focus: OP.cx / W }));
 })();

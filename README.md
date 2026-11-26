@@ -7,7 +7,7 @@ Each episode is one self-contained HTML page: a stream that keeps running until 
 |---|---|---|
 | 01 | [Stateless transform](dist/01-transform.html) | pass through, filter, map, filter + map |
 | 02 | [Streaming aggregation](dist/02-aggregation.html) | global aggregation with EMIT PERIODIC and EMIT ON UPDATE, tumble window, late events, WITH DELAY |
-| 03 | [Streaming join](dist/03-join.html) | LATEST JOIN, bidirectional JOIN of two append streams, range join with date_diff_within |
+| 03 | [Streaming join](dist/03-join.html) | stream JOIN table, stream JOIN stream (bidirectional), range join with date_diff_within, LATEST JOIN |
 
 Planned, following the Proton KT order: changelog, backfill, S3 storage, hybrid hash table, materialized views, checkpoint, cluster.
 
@@ -59,6 +59,7 @@ Rules shown on stage follow the Proton source, for example:
 - A window is finalized when `window.end <= watermark` (`WindowAggregatingTransform::finalize`).
 - Events with `event time < watermark` are dropped as late.
 - A global aggregation without an `EMIT` clause emits every 2 seconds.
+- `JOIN table(x)` snapshots the right side once when the query starts and builds a static hash table; only left rows produce output.
 - `LATEST JOIN` keeps one row per key of the right stream; only left rows produce output.
 - A bidirectional join of two append streams buffers both sides and fails with `Streaming join's memory reaches max size` when the buffer limit is hit (`MemoryHashJoin::checkLimits`).
 - A range join takes the minimum of the two sides' watermarks (`MemoryHashJoin::calculateWatermark`) and removes rows that fell behind it by more than the range (`BufferedStreamData::removeOldBuckets`). Proton does this per time bucket; the animation does it per row.

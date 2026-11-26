@@ -21,6 +21,6 @@
     "name": "Streaming join",
     "title": "Streaming Join Lab",
     "h1": "Streaming join",
-    "description": "Animated explainer of Proton streaming joins: latest join, bidirectional join and range join."
+    "description": "Animated explainer of Proton streaming joins: stream join table, stream join stream, range join and latest join."
   }
 ]
