@@ -1,6 +1,6 @@
 /* Episode 2: streaming aggregation. Same stage as episode 1, but the operator now keeps state.
    Input cards are routed to their key's row and absorbed into a hollow state card.
-   The output is one stream: each record comes out of its key's state card and merges into one line. */
+   Each output record comes out of its key's state card and stays on that key's row. */
 (() => {
   const W = 1300, H = 404, V = 96;
   const { w: CW } = Lab.CARD;
@@ -13,9 +13,9 @@
   const TURN = 2.0;       // seconds before arrival when a card leaves the input line for its key's row
   const LAND = 1.0;       // seconds before arrival when it is on that row and starts to sink into the state card
   const REFUSED = 0.75;   // size of a late card when it is refused at the state card
-  const SLOT = (CW + 8) / V;   // output records leave one card apart
-  const PERIOD = 5;       // EMIT PERIODIC interval in seconds
-  const GROW = 1.0;       // seconds an output takes to come out of its state card; it then takes as long to join the output line
+  const SLOT = (CW + 8) / V;   // two records of one key emitted together leave one card apart
+  const PERIOD = 2;       // EMIT PERIODIC interval in seconds
+  const GROW = 1.0;       // seconds an output takes to grow out of its state card
   const WIN = 5;          // window size in seconds
   const t8 = (t) => Lab.hms(t).slice(0, 8);
 
@@ -23,8 +23,8 @@
   const modes = [
     {
       id: "global", label: "Global", agg: "global", emit: "periodic", rule: "count() by device",
-      sql: "SELECT device, count() FROM sensors GROUP BY device EMIT PERIODIC 5s",
-      note: "Now the operator has to <b>remember</b>. Each event joins its device's row and bumps the count kept in the hollow card: that is the state. Every 5 seconds the operator emits the current count of <i>every</i> device, changed or not: one record per device, one after another on the same output stream. Without <code>EMIT</code>, an aggregation with no window does this every 2 seconds.",
+      sql: "SELECT device, count() FROM sensors GROUP BY device EMIT PERIODIC 2s",
+      note: "Now the operator has to <b>remember</b>. Each event joins its device's row and bumps the count kept in the hollow card: that is the state. Every 2 seconds the operator emits the current count of <i>every</i> device, changed or not: one record per device. This is the default for an aggregation without a window.",
     },
     {
       id: "update", label: "On update", agg: "global", emit: "update", rule: "count() by device",
@@ -74,7 +74,7 @@
   function init(svg, m) {
     mode = m; rnd = Lab.rng(m.disorder ? 180 : 42); seq = 0;
     inputs = []; outs = []; drops = []; state = new Map();
-    gen = { maxEt: -Infinity, wm: null }; wm = null; lastArrive = -9; outFree = -Infinity;
+    gen = { maxEt: -Infinity, wm: null }; wm = null; lastArrive = -9; outFree = {};
     svg.attr("viewBox", `0 0 ${W} ${H}`);
     L = {
       bg: svg.append("g"), axis: svg.append("g").attr("class", "axis"), box: svg.append("g"), wm: svg.append("g"),
@@ -102,7 +102,7 @@
     wmG.append("text").attr("y", AXIS_Y + 36);
 
     // warm up, so the first frame already shows state and output
-    nextAt = -16; nextTick = -15;
+    nextAt = -16; nextTick = -16;
     for (let t = -16; t < 0; t += 0.1) step(t);
     step(0); render(0);
   }
@@ -120,16 +120,16 @@
     if (windowed()) Lab.setState(s.g, [...s.wins.keys()].sort((a, b) => a - b).map((ws) => ({ l: t8(ws), r: s.wins.get(ws) })));
     else Lab.setState(s.g, [{ l: "count", r: s.count }]);
   }
-  /* One output stream: one card per record, like the rows of the SQL result.
-     A record is born at its key's state card and merges into the single output line.
-     Records emitted at the same moment leave the operator one after another, because the line is one card wide.
+  /* Output: one card per record, like the rows of the SQL result. A record grows out of its key's state card
+     and stays on that row, so the output shows three lines, one per device, each card at its emit time.
+     Only if two records of the same key are emitted at the same moment does the second wait a card's width.
      rows = [{ key, count, timeText }], all emitted at processing time T. */
   function emit(rows, T) {
     rows.forEach((r) => {
-      const at = Math.max(T, outFree);
-      outFree = at + SLOT;
+      const at = Math.max(T, outFree[r.key] ?? -Infinity);
+      outFree[r.key] = at + SLOT;
       const g = Lab.card(L.out, { key: r.key, title: `device ${r.key}`, valText: `count ${r.count}`, timeText: r.timeText }).style("display", "none");
-      outs.push({ g, T: at, y0: ROW[r.key] });
+      outs.push({ g, T: at, y: ROW[r.key] });
     });
   }
 
@@ -212,11 +212,10 @@
       }
       c.g.attr("transform", `translate(${OP.cx - V * dt},${y}) scale(${sc})`).style("opacity", op);
     });
-    // Output, the mirror image: grow out of the key's state card on its row, then join the one output line.
+    // Output, the mirror image: grow out of the key's state card and ride that key's row.
     outs.forEach((o) => {
-      const a = now - o.T, u = Math.min(1, Math.max(0, a / GROW)), v = Math.min(1, Math.max(0, a / GROW - 1));
-      const y = o.y0 + (IN_Y - o.y0) * v * v * (3 - 2 * v);
-      o.g.attr("transform", `translate(${OP.cx + V * a},${y}) scale(${0.4 + 0.6 * u * (2 - u)})`).style("display", a < 0 ? "none" : null).style("opacity", Math.min(1, a / 0.3));
+      const a = now - o.T, u = Math.min(1, Math.max(0, a / GROW));
+      o.g.attr("transform", `translate(${OP.cx + V * a},${o.y}) scale(${0.4 + 0.6 * u * (2 - u)})`).style("display", a < 0 ? "none" : null).style("opacity", Math.min(1, a / 0.3));
     });
     drops.forEach((d) => {
       const t = Math.max(0, now - d.at - 0.3);   // turn grey where it landed, then fall away
