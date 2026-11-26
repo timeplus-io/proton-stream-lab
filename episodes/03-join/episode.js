@@ -17,6 +17,7 @@
   const LAND = 2.0;       // seconds before arrival when a card starts to shrink into its place in the table
   const GROW = 1.8;       // seconds a joined record takes to grow out from between the tables
   const FLY = 0.45;       // seconds a copy of a stored row takes to fly to the record it joins
+  const LOOKUP = 0.7;     // seconds a looked-up row takes to reach the card that asked for it
   const SLOT = (CW + 8) / V;   // records emitted together leave one card apart
   const RANGE = 5;        // date_diff_within(5s)
   const LIMIT = 12;       // buffered rows at which the unbounded join is aborted (stands in for join_max_buffered_bytes)
@@ -34,10 +35,10 @@
   const BOTH = { L: "temps stream", R: "humidity stream" };
   const modes = [
     {
-      id: "table", label: "Stream + table", kind: "table", rule: "ON device, look up the table", warm: 0,
-      gaps: { L: "busy" }, tables: { R: "devices table" }, lanes: { L: "temps stream", R: "devices table, read once" },
+      id: "table", label: "Stream + table", kind: "table", rule: "ON device, look up the table", warm: 8,
+      gaps: { L: "busy" }, tables: { R: "devices table" }, lanes: { L: "temps stream" },
       sql: "SELECT t.device, t.temperature, d.room FROM temps AS t JOIN table(devices) AS d ON t.device = d.device",
-      note: "The simplest join enriches a stream from a table. When the query starts, the table is read once (the three square cards on the lower lane) and kept inside the operator, one row per device. After that only the stream moves: each temperature card passes through, picks up the room of its device from the table, and leaves as a joined record. The stream is never stored, so the state stays as small as the table. Later changes to the table are not seen.",
+      note: "The simplest join enriches a stream from a table. The table is read once when the query starts and kept inside the operator, one row per device; it does not move and later changes to it are not seen. Only the stream moves. When a temperature card reaches the operator, the row of its device is looked up in the table and added to the card, which leaves as the joined record. The stream is never stored, so the state stays as small as the table.",
     },
     {
       id: "all", label: "Stream + stream", kind: "all", rule: "ON device, keep every row", warm: 6,
@@ -130,15 +131,10 @@
     Object.entries(mode.gaps).forEach(([side, kind], i) => {
       gen[side] = { rnd: Lab.rng(side === "L" ? 11 : 29), seq: 0, recent: [], next: -mode.warm + i * 0.7, gap: GAP[kind] };
     });
-    if (mode.kind === "table") {          // the table is read once when the query starts, before any stream row is joined
-      ROOMS.forEach(([key, room], i) => {
-        const ev = { key, side: "R", title: `device ${key}`, val: room, valText: room, timeText: "table row", at: 1 + i * MIN_GAP, et: 0 };
-        inputs.push({ ev, g: Lab.card(L.in, ev) });
-      });
-      gen.L.next = 1 + ROOMS.length * MIN_GAP + 0.4;
-    }
     // warm up, so the first frame already shows state and output
     warming = true;
+    // the table was read when the query started: its rows are in the operator from the first frame
+    if (mode.kind === "table") ROOMS.forEach(([key, room]) => store({ key, side: "R", val: room }));
     for (let t = -mode.warm; t < 0; t += 0.1) step(t);
     warming = false;
     step(0); render(0);
@@ -172,9 +168,11 @@
   }
 
   /* A copy of a stored row flies to the record it becomes part of. to() gives the target, which may be moving. */
-  function fly(r, to, T) {
+  function fly(r, to, T, dur = FLY, fade = 0.6) {
     const from = chipPos(r.ev.side, r.ev.key, tbl[r.ev.side][r.ev.key].indexOf(r));
-    flies.push({ g: chip(L.top, r.ev, from), from, to, T });
+    const g = chip(L.top, r.ev, from);
+    g.select("rect").style("stroke", "var(--panel)").style("stroke-width", 1.5);   // stays visible over a card of its own color
+    flies.push({ g, from, to, T, dur, fade });
   }
 
   /* A joined record: left row + right row of the same device. Rounded on the left, square on the right. */
@@ -215,11 +213,13 @@
         drops.push({ g: c.g, at: ev.at, y: LANE.L });
         return;
       }
-      // the left row is not stored: it picks up the right row and leaves on its own lane
-      c.g.remove();
-      const o = { g: Lab.card(L.out, { ...joined(ev, r.ev), timeText: t8(ev.at) }), T: ev.at, y: LANE.L, through: true };
-      outs.push(o); Lab.flash(o.g); flashChip(r.g);
-      fly(r, () => [OP.cx + V * (clock - o.T), LANE.L], ev.at);
+      // The left row is not stored. It keeps moving on its own lane while its device's row is looked up:
+      // a copy of that row leaves the table, and when it reaches the card the card becomes the joined record.
+      L.top.node().appendChild(c.g.node());
+      const o = { g: c.g, T: ev.at, y: LANE.L, through: true, lookup: { l: ev, r: r.ev, at: ev.at + LOOKUP } };
+      outs.push(o);
+      if (!warming) outline(r.g, "var(--accent)").transition().delay(LOOKUP * 1000).duration(400).style("stroke-width", 0);
+      fly(r, () => [OP.cx + V * (clock - o.T), LANE.L], ev.at, LOOKUP, 0);
       return;
     }
     // both sides are stored; the new row is joined with the rows of the same device in the other table
@@ -264,10 +264,18 @@
     });
     inputs.sort((a, b) => a.ev.at - b.ev.at);
     while (halt == null && inputs.length && inputs[0].ev.at <= now) arrive(inputs.shift());
-    outs.forEach((o) => { if (o.rows && o.T <= now) pair(o); });
+    outs.forEach((o) => {
+      if (o.rows && o.T <= now) pair(o);
+      if (o.lookup && o.lookup.at <= now) {       // the looked-up row has arrived: the card is now the joined record
+        o.g.remove();
+        o.g = Lab.card(L.top, { ...joined(o.lookup.l, o.lookup.r), timeText: t8(o.T) });
+        if (!warming) Lab.flash(o.g);
+        o.lookup = null;
+      }
+    });
     outs = outs.filter((o) => { const gone = OP.cx + V * (now - o.T) > W + CW; if (gone) o.g.remove(); return !gone; });
     drops = drops.filter((d) => { const gone = now - d.at > 1.3; if (gone) d.g.remove(); return !gone; });
-    flies = flies.filter((f) => { const gone = now - f.T >= FLY; if (gone) f.g.remove(); return !gone; });
+    flies = flies.filter((f) => { const gone = now - f.T >= f.dur; if (gone) f.g.remove(); return !gone; });
   }
 
   function tick(dt, now) {
@@ -305,8 +313,8 @@
       o.g.attr("transform", `translate(${OP.cx + V * a},${o.y}) scale(${sc})`).style("display", a < 0 ? "none" : null).style("opacity", o.through ? 1 : Math.min(1, a / 0.25));
     });
     flies.forEach((f) => {
-      const p = Math.min(1, Math.max(0, (now - f.T) / FLY)), e = p * p * (3 - 2 * p), [tx, ty] = f.to();
-      f.g.attr("transform", `translate(${f.from[0] + (tx - f.from[0]) * e},${f.from[1] + (ty - f.from[1]) * e})`).style("opacity", 1 - 0.6 * p * p);
+      const p = Math.min(1, Math.max(0, (now - f.T) / f.dur)), e = p * p * (3 - 2 * p), [tx, ty] = f.to();
+      f.g.attr("transform", `translate(${f.from[0] + (tx - f.from[0]) * e},${f.from[1] + (ty - f.from[1]) * e})`).style("opacity", 1 - f.fade * p * p);
     });
     drops.forEach((d) => {
       const t = Math.max(0, now - d.at - 0.3);   // turn grey where it stood, then fall away
