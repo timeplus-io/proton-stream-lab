@@ -1,0 +1,37 @@
+<title>{{TITLE}}</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="{{DESCRIPTION}}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Young+Serif&display=swap">
+<style>
+{{CORE_CSS}}
+</style>
+<div class="page">
+  <div class="head">
+    <header>
+      <div class="eyebrow">Stream stories · {{EP_NUM}}</div>
+      <h1>{{H1}}</h1>
+      <p class="sub">{{SUB}}</p>
+    </header>
+    <div class="now" aria-live="off">
+      <div class="time" id="time">12:00:00</div>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+  <div class="stage" id="stage"></div>
+  <div class="steps">
+    <div class="seg" id="scenes" role="group" aria-label="Story steps"></div>
+    <span class="spacer"></span>
+    <button id="play" type="button">Pause</button>
+  </div>
+  <p class="story" id="story"></p>
+  <div class="foot"><span>Illustrative: a made-up factory.</span><span class="links">{{SERIES}}</span></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+{{CORE_JS}}
+</script>
+<script>
+{{EP_JS}}
+</script>

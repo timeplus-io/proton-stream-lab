@@ -13,6 +13,27 @@ Planned, following the Proton KT order: changelog, backfill, S3 storage, hybrid 
 
 Hosted previews (private claude.ai artifacts): [01](https://claude.ai/artifact/5NnepDP1ZoGJvyrUWehrin) · [02](https://claude.ai/artifact/JMaGU5PCMeF28HHKdS6vQL) · [03](https://claude.ai/artifact/H23UQb72c9wxyJ7e4prsfx). `links.artifacts.json` maps episodes to those URLs for `build.py --fragment --links links.artifacts.json`.
 
+## Stream Stories: the same ideas for readers who are not engineers
+
+A second series tells the same ideas as a small factory, drawn with three.js as a cut-away diorama on paper.
+There is no SQL on these pages. The Stream Lab episodes above stay as they are, for engineers.
+
+| In the story | In stream processing |
+|---|---|
+| the production line, which never stops | a stream |
+| one candy on the line | one event |
+| a worker at the line | an operator |
+| the clock on the wall | time |
+| raw candy in, finished candy out | input stream, output stream |
+
+| # | Story | Scenes | Engineer episode |
+|---|---|---|---|
+| 01 | [The candy line](dist/story-01-candy-line.html) ([preview](https://claude.ai/artifact/R493f7zWncGesHC1xrh1FQ)) | the line, the inspector (filter), the wrapper (transform), the whole line | 01 Stateless transform |
+
+Planned: 02 the counter (a tally board is the state, a box per time slot is a window, a late candy misses its box), 03 two lines meet (joins).
+
+Rules for a story: one diorama seen from a fixed camera, the line runs left to right and until Pause, the same candies arrive in every scene and only the workers change, margin labels name only what the scene is about, each scene has one short caption that states the idea in plain words and gives the engineer's word last.
+
 ## Design rules
 
 - Keep it simple: one stage, input on the left, the operator in the middle, output on the right.
@@ -32,7 +53,7 @@ Hosted previews (private claude.ai artifacts): [01](https://claude.ai/artifact/5
 
 ## Run it
 
-No build tools are needed to view a page: open `dist/<episode>.html` in a browser (it loads D3 and fonts from public CDNs).
+No build tools are needed to view a page: open `dist/<episode>.html` in a browser (it loads D3 or three.js and fonts from public CDNs).
 
 To rebuild after editing sources:
 
@@ -49,6 +70,11 @@ src/lab.css         shared tokens and styles (light + dark)
 src/lab-shell.html  page template (title, tabs, legend, stage, SQL, caption)
 episodes/NN-*/episode.js   one file per episode: tabs, event generator, operator logic, rendering
 episodes.json       episode metadata
+stories/src/story.js          shared three.js kit: floor slab, walls, belt, worker, clock, margin labels, scene buttons
+stories/src/story.css         paper page, hand-lettered labels (light + dark)
+stories/src/story-shell.html  page template for a story
+stories/episodes/NN-*/episode.js   one file per story: scenes, candies, workers
+stories/stories.json          story metadata
 dist/               built pages (committed so they can be opened or served directly)
 ```
 

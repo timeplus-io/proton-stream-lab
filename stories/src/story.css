@@ -1,0 +1,64 @@
+/* Stream Stories: the same ideas as the Stream Lab, told as a small factory for readers who are not engineers.
+   A paper page, a hand-lettered voice and one diorama. */
+:root {
+  --paper: #F9F5EC; --grid: rgba(70, 62, 50, 0.06); --ink: #2B2826; --soft: #6F675C; --line: #8C8377;
+  --panel: #FFFDF7; --accent: #C4604F; --on-accent: #FFFDF7; --rail: #E7D7AC;
+  --font-title: "Young Serif", Georgia, "Times New Roman", serif;
+  --font-hand: "Patrick Hand", "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #1D1B18; --grid: rgba(240, 230, 210, 0.05); --ink: #F3ECDF; --soft: #B5AC9D; --line: #8C8377;
+    --panel: #26231F; --accent: #E0806E; --on-accent: #1D1B18; --rail: #5A5140; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #1D1B18; --grid: rgba(240, 230, 210, 0.05); --ink: #F3ECDF; --soft: #B5AC9D; --line: #8C8377;
+  --panel: #26231F; --accent: #E0806E; --on-accent: #1D1B18; --rail: #5A5140; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background-color: var(--paper); color: var(--ink); font-family: var(--font-hand); font-size: 19px; line-height: 1.35;
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+.page {
+  max-width: 1240px; margin: 0 auto; padding-block: 30px 36px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 10px;
+}
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px 28px; }
+.eyebrow { font-size: 15px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 400 clamp(34px, 6vw, 60px)/1 var(--font-title); margin: 2px 0 6px; letter-spacing: -0.02em; text-wrap: balance; }
+.sub { margin: 0; font-size: 21px; letter-spacing: .06em; color: var(--ink); }
+.now { text-align: right; display: grid; gap: 0; justify-items: end; margin-left: auto; }
+.now .time { font-size: 34px; letter-spacing: .08em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.now .status { font-size: 19px; letter-spacing: .05em; color: var(--ink); }
+
+.stage { position: relative; }
+.stage.compact .tag, .stage.compact svg.leaders { display: none; }
+.stage canvas { display: block; width: 100%; }
+.stage svg.leaders { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.leaders path { fill: none; stroke: var(--line); stroke-width: 1; }
+.leaders circle { fill: var(--paper); stroke: var(--line); stroke-width: 1; }
+.tag { position: absolute; max-width: 17.5%; pointer-events: none; }
+.tag.right { text-align: right; }
+.tag b { display: block; font-weight: 400; font-size: 22px; letter-spacing: .12em; text-transform: uppercase; line-height: 1.15; }
+.tag span { display: block; font-size: 18px; letter-spacing: .05em; color: var(--soft); line-height: 1.2; }
+.nogl { padding: 60px 20px; text-align: center; color: var(--soft); }
+
+.steps { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.steps .seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.steps button {
+  font: inherit; font-size: 19px; letter-spacing: .05em; cursor: pointer; color: var(--ink);
+  background: var(--panel); border: 1.5px solid var(--line); border-radius: 999px; padding: 5px 16px 6px;
+}
+.steps button i { font-style: normal; color: var(--soft); margin-right: 6px; }
+.steps button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.steps button[aria-pressed="true"] i { color: var(--rail); }
+.steps button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.steps .spacer { flex: 1; }
+.steps #play { background: var(--accent); color: var(--on-accent); border-color: var(--accent); min-width: 92px; }
+.story { margin: 4px 0 0; font-size: 23px; line-height: 1.35; max-width: 62ch; text-wrap: pretty; }
+.foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 20px; font-size: 17px; letter-spacing: .04em; color: var(--soft); margin-top: 6px; }
+.foot a { color: inherit; }
