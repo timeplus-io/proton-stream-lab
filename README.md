@@ -23,8 +23,8 @@ Hosted previews (private claude.ai artifacts): [01](https://claude.ai/artifact/5
 - A legend under the stage explains what color means (here: the device).
 - Timeplus styling: Inter, Timeplus pink accent, purple-tinted greys.
 
-- State is a hollow card that stays inside the operator. Events are routed to their key's row and absorbed.
-- The output is one stream: one card per record, like the rows of the SQL result. Each record comes out of its key's state card and merges into a single output line. Records emitted at the same moment (a periodic emit, a closed window) leave one after another.
+- State is a hollow card that stays inside the operator. An input card leaves the input line at the operator's edge, turns onto its key's row, lands on the state card and sinks into it; the changed number lights up. A late card takes the same path but is refused: it turns grey and falls away.
+- The output is one stream and mirrors the input: each record grows out of its key's state card on that row, then joins a single output line. One card per record, like the rows of the SQL result. Records emitted at the same moment (a periodic emit, a closed window) leave one after another.
 - The watermark is the only dashed line: gold, on the time axis. Window boundaries are thin solid lines that scroll with the axis. If the watermark is further back than the stage shows, its label is pinned to the right edge.
 
 Episodes 01 and 02 use the simple runtime (`src/lab.js`, `src/lab.css`, `src/lab-shell.html`). Episode 03 still uses the first, chapter-based runtime (`src/core.*`, `src/shell.html`) until it is rebuilt.

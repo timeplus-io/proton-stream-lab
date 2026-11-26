@@ -183,8 +183,10 @@ const Lab = (() => {
       g.select(`.s-r${i}`).attr("y", ys[i] ?? 0).text(r ? r.r : "");
     });
   }
-  function flash(g) {
+  /* Flash a card's outline. On a state card, row = index of the number that just changed: it lights up briefly. */
+  function flash(g, row) {
     g.select(".c-flash").interrupt().style("opacity", 1).transition().duration(700).style("opacity", 0);
+    if (row != null) g.select(`.s-r${row}`).interrupt().style("fill", "var(--accent)").transition().delay(500).duration(0).style("fill", null);
   }
 
   function sqlHtml(sql) {

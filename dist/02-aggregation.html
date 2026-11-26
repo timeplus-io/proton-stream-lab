@@ -183,8 +183,10 @@ const Lab = (() => {
       g.select(`.s-r${i}`).attr("y", ys[i] ?? 0).text(r ? r.r : "");
     });
   }
-  function flash(g) {
+  /* Flash a card's outline. On a state card, row = index of the number that just changed: it lights up briefly. */
+  function flash(g, row) {
     g.select(".c-flash").interrupt().style("opacity", 1).transition().duration(700).style("opacity", 0);
+    if (row != null) g.select(`.s-r${row}`).interrupt().style("fill", "var(--accent)").transition().delay(500).duration(0).style("fill", null);
   }
 
   function sqlHtml(sql) {
@@ -257,18 +259,20 @@ const Lab = (() => {
    Input cards are routed to their key's row and absorbed into a hollow state card.
    The output is one stream: each record comes out of its key's state card and merges into one line. */
 (() => {
-  const W = 1200, H = 404, V = 96;
+  const W = 1300, H = 404, V = 96;
   const { w: CW } = Lab.CARD;
   const KEYS = ["A", "B", "C"];
   const ROW = { A: 118, B: 202, C: 286 }, IN_Y = ROW.B;
-  const OP = { x: 198, y: 50, w: 264, h: 286, cx: 330 };   // left of center: the output side needs room for the watermark
+  const OP = { x: 288, y: 50, w: 264, h: 286, cx: 420 };   // left of center: the output side needs room for the watermark
   const AXIS_Y = 358;
   const MIN_GAP = (CW + 14) / V;
   const AHEAD = (OP.cx + CW) / V;
-  const ROUTE = 0.9;      // seconds before arrival when a card turns toward its key's row
+  const TURN = 2.0;       // seconds before arrival when a card leaves the input line for its key's row
+  const LAND = 1.0;       // seconds before arrival when it is on that row and starts to sink into the state card
+  const REFUSED = 0.75;   // size of a late card when it is refused at the state card
   const SLOT = (CW + 8) / V;   // output records leave one card apart
   const PERIOD = 5;       // EMIT PERIODIC interval in seconds
-  const GROW = 1.0;       // seconds an output takes to leave its state card and reach the output line
+  const GROW = 1.0;       // seconds an output takes to come out of its state card; it then takes as long to join the output line
   const WIN = 5;          // window size in seconds
   const t8 = (t) => Lab.hms(t).slice(0, 8);
 
@@ -331,7 +335,7 @@ const Lab = (() => {
     svg.attr("viewBox", `0 0 ${W} ${H}`);
     L = {
       bg: svg.append("g"), axis: svg.append("g").attr("class", "axis"), box: svg.append("g"), wm: svg.append("g"),
-      out: svg.append("g"), in: svg.append("g"), state: svg.append("g"), top: svg.append("g"),
+      out: svg.append("g"), state: svg.append("g"), in: svg.append("g"), top: svg.append("g"),
     };
     clockTxt = L.bg.append("text").attr("class", "clock").attr("x", OP.cx).attr("y", 34);
 
@@ -364,6 +368,7 @@ const Lab = (() => {
   function ensureState(key) {
     if (!state.has(key)) {
       const g = Lab.stateCard(L.state, key, `device ${key}`).attr("transform", `translate(${OP.cx},${ROW[key]})`);
+      g.style("opacity", 0).transition().duration(250).style("opacity", 1);
       state.set(key, { g, count: 0, wins: new Map() });
     }
     return state.get(key);
@@ -388,23 +393,23 @@ const Lab = (() => {
   function arrive(c) {
     const ev = c.ev;
     lastArrive = ev.at;
-    if (ev.late) {                       // behind the watermark: dropped, never reaches the state
+    if (ev.late) {                       // behind the watermark: its window is gone, so it is refused and never changes the state
       L.top.node().appendChild(c.g.node());
       c.g.classed("dropped", true);
-      drops.push({ g: c.g, at: ev.at });
+      drops.push({ g: c.g, at: ev.at, y: ROW[ev.key] });
       return;
     }
     c.g.remove();
     const s = ensureState(ev.key);
     if (!windowed()) {
       s.count++;
-      showState(s); Lab.flash(s.g);
+      showState(s); Lab.flash(s.g, 0);
       if (mode.emit === "update") emit([{ key: ev.key, count: s.count, timeText: t8(ev.at) }], ev.at);
       return;
     }
     const ws = Math.floor(ev.et / WIN) * WIN;
     s.wins.set(ws, (s.wins.get(ws) || 0) + 1);
-    showState(s); Lab.flash(s.g);
+    showState(s); Lab.flash(s.g, [...s.wins.keys()].sort((a, b) => a - b).indexOf(ws));
     if (wm == null || ev.wm > wm) { wm = ev.wm; closeWindows(ev.at); }
   }
 
@@ -444,7 +449,7 @@ const Lab = (() => {
       } else arrive(inputs.shift());
     }
     outs = outs.filter((o) => { const gone = OP.cx + V * (now - o.T) > W + CW; if (gone) o.g.remove(); return !gone; });
-    drops = drops.filter((d) => { const gone = now - d.at > 1.2; if (gone) d.g.remove(); return !gone; });
+    drops = drops.filter((d) => { const gone = now - d.at > 1.3; if (gone) d.g.remove(); return !gone; });
   }
 
   function tick(dt, now) { step(now); render(now); }
@@ -452,24 +457,27 @@ const Lab = (() => {
   function render(now) {
     clockTxt.text(t8(now));
     opBox.classed("busy", now - lastArrive < 0.35);
+    // Input: ride the input line, turn onto the key's row at the operator's edge, then land on the state card and sink into it.
     inputs.forEach((c) => {
       const dt = c.ev.at - now;
       let y = IN_Y, op = 1, sc = 1;
-      if (!c.ev.late && dt < ROUTE) {     // turn toward the key's row and shrink into the state card
-        const u = 1 - dt / ROUTE, e = u * u * (3 - 2 * u);
-        y = IN_Y + (ROW[c.ev.key] - IN_Y) * e;
-        sc = 1 - 0.72 * e;
-        op = Math.min(1, dt / 0.2);
+      if (dt < TURN) { const u = Math.min(1, (TURN - dt) / (TURN - LAND)); y = IN_Y + (ROW[c.ev.key] - IN_Y) * u * u * (3 - 2 * u); }
+      if (dt < LAND) {
+        const u = 1 - dt / LAND;
+        if (c.ev.late) sc = 1 - (1 - REFUSED) * u * u;                       // a late card stays solid: it will be refused
+        else { sc = 1 - 0.6 * u * u; op = Math.min(1, dt / 0.5); }
       }
       c.g.attr("transform", `translate(${OP.cx - V * dt},${y}) scale(${sc})`).style("opacity", op);
     });
-    outs.forEach((o) => {               // come out of the key's state card, then merge into the one output line
-      const u = Math.min(1, (now - o.T) / GROW), e = u * u * (3 - 2 * u);
-      o.g.attr("transform", `translate(${OP.cx + V * (now - o.T)},${o.y0 + (IN_Y - o.y0) * e}) scale(${0.28 + 0.72 * e})`).style("display", now < o.T ? "none" : null).style("opacity", Math.min(1, (now - o.T) / 0.15));
+    // Output, the mirror image: grow out of the key's state card on its row, then join the one output line.
+    outs.forEach((o) => {
+      const a = now - o.T, u = Math.min(1, Math.max(0, a / GROW)), v = Math.min(1, Math.max(0, a / GROW - 1));
+      const y = o.y0 + (IN_Y - o.y0) * v * v * (3 - 2 * v);
+      o.g.attr("transform", `translate(${OP.cx + V * a},${y}) scale(${0.4 + 0.6 * u * (2 - u)})`).style("display", a < 0 ? "none" : null).style("opacity", Math.min(1, a / 0.3));
     });
     drops.forEach((d) => {
-      const t = Math.max(0, now - d.at - 0.25);
-      d.g.attr("transform", `translate(${OP.cx + V * Math.min(now - d.at, 0.25)},${IN_Y + 70 * t + 130 * t * t})`).style("opacity", Math.max(0, 1 - t / 0.8));
+      const t = Math.max(0, now - d.at - 0.3);   // turn grey where it landed, then fall away
+      d.g.attr("transform", `translate(${OP.cx},${d.y + 50 * t + 100 * t * t}) scale(${REFUSED})`).style("opacity", Math.max(0, 1 - t / 0.8));
     });
     // time axis; in windowed modes the window boundaries are drawn up through the stage
     const every = windowed() ? WIN : 2;
