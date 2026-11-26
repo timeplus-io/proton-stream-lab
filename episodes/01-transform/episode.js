@@ -13,36 +13,38 @@
   const modes = [
     {
       id: "pass", label: "Pass through", rule: "no change",
-      sql: "SELECT * FROM sensors",
-      note: "Each card sits on the time axis at its own timestamp, and reaches the operator exactly when the clock shows that time. Events come when they come, so the gaps are uneven: bursts, then quiet. By default an event's time (<code>_tp_time</code>) is the moment Timeplus ingests it.",
+      sql: "SELECT * FROM temps",
+      note: "A stream is a table that never ends. Each card is one event: a device, a temperature and the time it happened. Cards move along the time axis and reach the operator (the grey box) exactly when the clock shows their time. The query never finishes: every event comes out the moment it arrives. Events happen when they happen, so the gaps are uneven. By default an event's time (<code>_tp_time</code>) is the moment Timeplus receives it.",
     },
     {
       id: "filter", label: "Filter", filter: true, rule: "temperature > 30",
-      sql: "SELECT * FROM sensors WHERE temperature > 30",
-      note: "Each event is checked on its own. Readings of 30 °C or less turn grey and drop out; the rest move on unchanged. Nothing is remembered between events, so a filter has no state.",
+      sql: "SELECT * FROM temps WHERE temperature > 30",
+      note: "The operator looks at one event at a time. A reading above 30 °C moves on unchanged. A reading of 30 °C or less turns grey and drops out. Nothing is remembered from one event to the next, so a filter needs no memory.",
     },
     {
-      id: "map", label: "Map", map: true, rule: "°C × 1.8 + 32 = °F",
-      sql: "SELECT device, temperature * 1.8 + 32 AS temp_f, _tp_time FROM sensors",
-      note: "One event in, one event out. The value is computed from the input (Celsius to Fahrenheit); the id, device and event time stay the same.",
+      id: "map", label: "Convert", map: true, rule: "°C × 1.8 + 32 = °F",
+      sql: "SELECT device, temperature * 1.8 + 32 AS temp_f, _tp_time FROM temps",
+      note: "One event in, one event out. The operator computes a new value from each event, here Celsius to Fahrenheit. The device and the time stay the same, and again nothing is remembered.",
     },
     {
-      id: "both", label: "Filter + map", filter: true, map: true, rule: "> 30, then × 1.8 + 32",
-      sql: "SELECT device, temperature * 1.8 + 32 AS temp_f, _tp_time FROM sensors WHERE temperature > 30",
-      note: "Operators chain: the filter drops cold readings, the expression converts what is left. Both are stateless, so the query can restart from any point in the stream with nothing to restore.",
+      id: "both", label: "Filter + convert", filter: true, map: true, rule: "> 30, then × 1.8 + 32",
+      sql: "SELECT device, temperature * 1.8 + 32 AS temp_f, _tp_time FROM temps WHERE temperature > 30",
+      note: "Operators can be chained: the filter drops the cold readings, then the rest are converted. Each event is still handled on its own. That is what <b>stateless</b> means, and it is why such a query can stop and restart anywhere in the stream with nothing to restore.",
     },
   ];
 
-  let L, cards, opBox, nextAt, seq, rnd, mode, clockTxt;
+  let L, cards, opBox, nextAt, seq, rnd, mode, clockTxt, recent;
 
   function newEvent(now) {   // _tp_time defaults to the time the event is ingested
     const key = DEVICES[Math.floor(rnd() * 3)];
-    const c = 26 + Math.floor(rnd() * 13);
+    let c = 26 + Math.floor(rnd() * 13);
+    while (recent.includes(c)) c = 26 + ((c - 26 + 3) % 13);   // cards on screen together never share a value
+    recent.push(c); if (recent.length > 6) recent.shift();
     return { id: ++seq, key, keyLabel: `device ${key}`, val: c, valText: `${c} °C`, at: now, et: now };
   }
 
   function init(svg, m) {
-    mode = m; cards = []; seq = 0; rnd = Lab.rng(42);
+    mode = m; cards = []; recent = []; seq = 0; rnd = Lab.rng(42);
     L = { bg: svg.append("g"), axis: svg.append("g").attr("class", "axis"), cards: svg.append("g"), top: svg.append("g") };
 
     // the clock is the "now" marker: it sits above the operator, on the same vertical as the axis pointer

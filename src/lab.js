@@ -27,6 +27,7 @@ const Lab = (() => {
     g.append("text").attr("class", "c-id").attr("x", x0 + 12).attr("y", y0 + 20);
     g.append("text").attr("class", "c-val").attr("x", x0 + 12).attr("y", 9);
     g.append("text").attr("class", "c-time").attr("x", x0 + 12).attr("y", h / 2 - 10);
+    if (ev.noteText) g.append("text").attr("class", "c-note").attr("x", x0 + 12).attr("y", h / 2 + 15).text(ev.noteText);   // a remark about the card, not part of its data
     fill(g, ev);
     return g;
   }

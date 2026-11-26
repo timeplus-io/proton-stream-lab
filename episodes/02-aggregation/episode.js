@@ -18,46 +18,54 @@
   const GROW = 1.0;       // seconds an output takes to grow out of its state card
   const WIN = 5;          // window size in seconds
   const t8 = (t) => Lab.hms(t).slice(0, 8);
+  const span = (ws) => `${t8(ws)}–:${t8(ws + WIN).slice(6)}`;   // a window, as printed on state and output cards
 
-  const TUMBLE = "SELECT window_start, device, count() FROM tumble(sensors, 5s) GROUP BY window_start, device";
+  const TUMBLE = "SELECT window_start, device, count() FROM tumble(temps, 5s) GROUP BY window_start, device";
   const modes = [
     {
       id: "global", label: "Global", agg: "global", emit: "periodic", rule: "count() by device",
-      sql: "SELECT device, count() FROM sensors GROUP BY device EMIT PERIODIC 2s",
-      note: "Now the operator has to <b>remember</b>. Each event joins its device's row and bumps the count kept in the hollow card: that is the state. Every 2 seconds the operator emits the current count of <i>every</i> device, changed or not: one record per device. This is the default for an aggregation without a window.",
+      sql: "SELECT device, count() FROM temps GROUP BY device EMIT PERIODIC 2s",
+      note: "Counting needs memory. The operator keeps one number per device in a hollow card: that is its <b>state</b>. Each event sinks into its device's card and adds 1. A stream never ends, so the count is never final. The operator reports it on a timer instead: every 2 seconds it emits the current count of every device, changed or not. This is the default for an aggregation without a window.",
     },
     {
       id: "update", label: "On update", agg: "global", emit: "update", rule: "count() by device",
-      sql: "SELECT device, count() FROM sensors GROUP BY device EMIT ON UPDATE",
-      note: "Same state, different trigger. A result is emitted as soon as an event changes it, and only for the device that changed: one row out for each event in. There is no timer.",
+      sql: "SELECT device, count() FROM temps GROUP BY device EMIT ON UPDATE",
+      note: "The same state, a different trigger. There is no timer: a result is emitted the moment an event changes it, and only for the device that changed. One event in, one record out.",
     },
     {
       id: "tumble", label: "Tumble window", agg: "tumble", delay: 0, rule: "count() by device, 5s windows",
       sql: TUMBLE,
-      note: "Time is cut into 5-second windows (the thin vertical lines). State is kept per window. The <b>watermark</b> (the gold dashed line) marks how far event time has got: it moves to a window's start when the first event of that window arrives. That closes the window before it: its counts are emitted once, one record per device, and its state is freed.",
+      note: "A window gives the count an end. Time is cut into 5-second windows (the thin vertical lines) and each window is counted on its own. The <b>watermark</b> (gold dashed line) shows how far the stream's time has advanced: it jumps to the start of a window when that window's first event arrives. The window before it is then complete: its counts are emitted once, one record per device, and its state is freed.",
     },
     {
       id: "late", label: "Late events", agg: "tumble", delay: 0, disorder: true, rule: "count() by device, 5s windows",
       sql: TUMBLE,
-      note: "Here some events arrive after they happened: the time printed on the card is older than its place on the axis. If that time is still at or after the watermark (the gold dashed line), the event is counted in its own window. If it is behind the watermark, its window has already been emitted, so the event turns grey and is dropped.",
+      note: "Events do not always arrive on time. Here some cards are late, and the label under the card says by how much: the time printed on it is older than the clock. A late event still counts if its time is not behind the watermark (gold dashed line). If it is behind the watermark, its window has already been emitted, so the event turns grey and is dropped.",
     },
     {
       id: "delay", label: "With delay", agg: "tumble", delay: 2, disorder: true, rule: "5s windows, delay 2s",
       sql: TUMBLE + " EMIT AFTER WINDOW CLOSE WITH DELAY 2s",
-      note: "The same stream as the previous tab. The watermark (gold dashed line) now waits 2 seconds longer before it moves, so two windows can be open at once and fewer stragglers are dropped. The price: every result comes out later.",
+      note: "The same stream as the previous tab, with more patience. The watermark now stays 2 seconds behind the newest event, so a window stays open a little longer and fewer late events are dropped. The price: every result comes out 2 seconds later.",
     },
   ];
 
-  let L, mode, rnd, seq, nextAt, nextTick, gen, wm, lastArrive, outFree;
+  let L, mode, rnd, seq, nextAt, nextTick, gen, wm, lastArrive, outFree, recent;
   let inputs, outs, drops, state, clockTxt, opBox, wmG;
   const windowed = () => mode.agg === "tumble";
 
   function newEvent(at) {
     const key = KEYS[Math.floor(rnd() * 3)];
-    const c = 26 + Math.floor(rnd() * 13);
+    let c = 26 + Math.floor(rnd() * 13);
+    while (recent.includes(c)) c = 26 + ((c - 26 + 3) % 13);   // cards on screen together never share a value
+    recent.push(c); if (recent.length > 6) recent.shift();
     let et = at;
-    if (mode.disorder && rnd() < 0.33) et = at - (3 + rnd() * 3);   // this one took a while to arrive
+    if (mode.disorder) {                 // some events take a while to arrive: most of those 1 to 2 seconds, a few much longer
+      const a = rnd(), b = rnd();
+      if (a < 0.33) et = at - (1 + b * 1.2); else if (a < 0.39) et = at - (4 + b * 1.5);
+    }
     const ev = { id: ++seq, key, keyLabel: `device ${key}`, val: c, valText: `${c} °C`, at, et };
+    const behind = Math.floor(at) - Math.floor(et);   // the clock at arrival minus the time printed on the card
+    if (behind > 0) ev.noteText = `${behind}s late`;
     if (windowed()) {
       // Watermark rule from WatermarkStamper::calculateWatermark: start of the window holding (max event time - delay).
       ev.late = gen.wm != null && et < gen.wm;
@@ -72,7 +80,7 @@
   }
 
   function init(svg, m) {
-    mode = m; rnd = Lab.rng(m.disorder ? 180 : 42); seq = 0;
+    mode = m; rnd = Lab.rng(m.disorder ? 123 : 42); seq = 0; recent = [];
     inputs = []; outs = []; drops = []; state = new Map();
     gen = { maxEt: -Infinity, wm: null }; wm = null; lastArrive = -9; outFree = {};
     svg.attr("viewBox", `0 0 ${W} ${H}`);
@@ -117,7 +125,7 @@
     return state.get(key);
   }
   function showState(s) {
-    if (windowed()) Lab.setState(s.g, [...s.wins.keys()].sort((a, b) => a - b).map((ws) => ({ l: t8(ws), r: s.wins.get(ws) })));
+    if (windowed()) Lab.setState(s.g, [...s.wins.keys()].sort((a, b) => a - b).map((ws) => ({ l: span(ws), r: s.wins.get(ws) })));
     else Lab.setState(s.g, [{ l: "count", r: s.count }]);
   }
   /* Output: one card per record, like the rows of the SQL result. A record grows out of its key's state card
@@ -171,7 +179,7 @@
       if (s.wins.size) showState(s); else { s.g.remove(); state.delete(key); }
     });
     const rows = [...closed.keys()].sort((a, b) => a - b)
-      .flatMap((ws) => closed.get(ws).map((r) => ({ ...r, timeText: `${t8(ws)}–:${t8(ws + WIN).slice(6)}` })));
+      .flatMap((ws) => closed.get(ws).map((r) => ({ ...r, timeText: span(ws) })));
     if (rows.length) emit(rows, T);
   }
 
@@ -179,7 +187,9 @@
     while (nextAt < now + AHEAD) {
       const ev = newEvent(nextAt);
       inputs.push({ ev, g: Lab.card(L.in, ev) });
-      nextAt += rnd() < 0.55 ? MIN_GAP + rnd() * 0.25 : 1.7 + rnd() * 2.0;
+      // uneven arrivals; the disorder tabs keep the gaps shorter so the watermark has events to move on
+      if (mode.disorder) nextAt += rnd() < 0.6 ? MIN_GAP + rnd() * 0.3 : 1.8 + rnd() * 1.0;
+      else nextAt += rnd() < 0.55 ? MIN_GAP + rnd() * 0.25 : 1.7 + rnd() * 2.0;
     }
     for (;;) {   // everything due by now, in time order
       const te = inputs.length && inputs[0].ev.at <= now ? inputs[0].ev.at : Infinity;

@@ -71,6 +71,7 @@ footer .here { font-weight: 700; color: var(--fg); }
 .sl .card .c-id { font: 600 11px var(--font-body); opacity: .92; }
 .sl .card .c-val { font: 700 19px var(--font-body); letter-spacing: -0.01em; }
 .sl .card .c-time { font: 11px var(--font-mono); opacity: .92; }
+.sl .card .c-note { font: 600 11px var(--font-body); fill: var(--wm); }
 .sl .card.dropped .body { fill: var(--late) !important; }
 .sl .card .c-flash { fill: none; stroke: var(--accent); stroke-width: 2.5; opacity: 0; }
 .sl .axis-line { stroke: var(--line); stroke-width: 1; }
@@ -89,7 +90,7 @@ footer .here { font-weight: 700; color: var(--fg); }
 .sl .chip text { font: 600 10px var(--font-mono); fill: var(--on-key); text-anchor: middle; font-variant-numeric: tabular-nums; }
 .sl .state .c-flash { fill: none; stroke: var(--accent); stroke-width: 2.5; opacity: 0; }
 .sl .state .s-title { font: 600 11px var(--font-body); }
-.sl .state .s-l { font: 11.5px var(--font-mono); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.sl .state .s-l { font: 11px var(--font-mono); fill: var(--muted); font-variant-numeric: tabular-nums; }
 .sl .state .s-r { font: 700 15px var(--font-body); fill: var(--fg); font-variant-numeric: tabular-nums; }
 .sl .axis .tk .wline { stroke: var(--line); stroke-width: 1; }
 .sl .wm line { stroke: var(--wm); stroke-width: 2; stroke-dasharray: 6 4; }

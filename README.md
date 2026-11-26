@@ -5,7 +5,7 @@ Each episode is one self-contained HTML page: a stream that keeps running until 
 
 | # | Episode | Tabs |
 |---|---|---|
-| 01 | [Stateless transform](dist/01-transform.html) | pass through, filter, map, filter + map |
+| 01 | [Stateless transform](dist/01-transform.html) | pass through, filter, convert, filter + convert |
 | 02 | [Streaming aggregation](dist/02-aggregation.html) | global aggregation with EMIT PERIODIC and EMIT ON UPDATE, tumble window, late events, WITH DELAY |
 | 03 | [Streaming join](dist/03-join.html) | stream JOIN table, stream JOIN stream (bidirectional), range join with date_diff_within, LATEST JOIN |
 
@@ -21,6 +21,8 @@ Hosted previews (private claude.ai artifacts): [01](https://claude.ai/artifact/5
 - All data sits inside the data card: id, key, value, event time. Output cards use the same format as input cards, one card per record, like the rows of the SQL result.
 - Position is time: a card sits on the scrolling time axis at its own timestamp and reaches the operator when the clock shows that time. Arrivals are uneven (bursts and gaps), never evenly spaced.
 - Color is the key (the device). Shape is the stream: rounded for the main or left stream, square corners for the right stream of a join, rounded left and square right for a joined record. A legend above the stage says so.
+- A remark about a card that is not part of its data goes under the card in the watermark color, for example "4s late" on an event that arrives after its own timestamp.
+- The note under the SQL is written for a first-time reader: the idea first, then what to watch, in plain words.
 - State is a hollow card that stays inside the operator. In an aggregation there is one per key, each on its own row.
 - Motion is never hidden. An input card leaves its input line at the operator's edge, turns onto its key's row, lands on top of the state card and sinks into it; the number that changed lights up. A card that is refused (a late event, a lookup with no match) takes the same path, then turns grey and falls away.
 - The output of an aggregation mirrors the input: each record grows out of its key's state card and stays on that key's row, so the output shows one line per key, with every card at its emit time. Records emitted together on one row leave one after another.

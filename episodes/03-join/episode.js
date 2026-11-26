@@ -38,25 +38,25 @@
       id: "table", label: "Stream + table", kind: "table", rule: "ON device, look up the table", warm: 8,
       gaps: { L: "busy" }, tables: { R: "devices table" }, lanes: { L: "temps stream" },
       sql: "SELECT t.device, t.temperature, d.room FROM temps AS t JOIN table(devices) AS d ON t.device = d.device",
-      note: "The simplest join enriches a stream from a table. The table is read once when the query starts and kept inside the operator, one row per device; it does not move and later changes to it are not seen. Only the stream moves. When a temperature card reaches the operator, the row of its device is looked up in the table and added to the card, which leaves as the joined record. The stream is never stored, so the state stays as small as the table.",
+      note: "A join adds columns from another source. The simplest case is a stream and a table. The table is read once when the query starts and stays inside the operator, one row per device. When a temperature card reaches the operator, the row of its device is looked up and added to the card, which leaves as the joined record. The stream itself is never stored, so the state stays as small as the table. Later changes to the table are not seen.",
     },
     {
       id: "all", label: "Stream + stream", kind: "all", rule: "ON device, keep every row", warm: 6,
       gaps: { L: "mid", R: "mid" }, tables: { L: "temps rows", R: "humidity rows" }, lanes: BOTH,
       sql: SEL + "JOIN humidity AS h ON t.device = h.device",
-      note: "Now the right side is a second stream. Temperatures (<code>t</code>) arrive on the upper lane and humidity readings (<code>h</code>) on the lower lane, each at its own pace. A plain <code>JOIN</code> works in both directions, so each stream gets its own table inside the operator and every row is kept. A new row is joined with <i>all</i> rows of the same device in the other table, so one arrival can emit several records. Nothing is ever removed. Proton aborts the query once the buffered rows pass <code>join_max_buffered_bytes</code>; here that happens at 12 rows, and the demo starts over.",
+      note: "Now both sides are streams: temperatures (<code>t</code>) on the upper lane, humidity readings (<code>h</code>) on the lower lane, each at its own pace. A match can come from either side at any time, so the operator has to keep every row of both streams, each in its own table. A new row is joined with all rows of the same device in the other table. Nothing is ever removed, so the state only grows. Proton aborts the query when the buffered rows pass <code>join_max_buffered_bytes</code>; here that happens at 12 rows, and the demo starts over.",
     },
     {
       id: "range", label: "Within 5s", kind: "range", rule: "ON device, within 5s", warm: 16, echo: 0.45,
       gaps: { L: "mid", R: "mid" }, tables: { L: "temps rows", R: "humidity rows" }, lanes: BOTH,
       sql: SEL + "JOIN humidity AS h ON t.device = h.device AND date_diff_within(5s)",
-      note: "A time bound stops the growth. Two rows match only if their times are at most 5 seconds apart. Once <i>both</i> streams have moved more than 5 seconds past a row it can never match again, so it is removed from its table (gold outline, then gone). The join's watermark is the slower of the two streams, so if one stream goes quiet, the cleanup waits for it.",
+      note: "A time bound stops the growth. Two rows now match only if their times are at most 5 seconds apart. Once both streams have moved more than 5 seconds past a row, it can never match again and is removed from its table (gold outline, then gone). If one stream goes quiet the cleanup waits for it, because the slower stream decides how far time has advanced.",
     },
     {
       id: "latest", label: "Latest", kind: "latest", rule: "ON device, latest humidity", warm: 16,
       gaps: { L: "busy", R: "slow" }, tables: { R: "humidity, latest per device" }, lanes: BOTH,
       sql: SEL + "LATEST JOIN humidity AS h ON t.device = h.device",
-      note: "<code>LATEST JOIN</code> is the lookup of the first tab, but against a live stream instead of a table. Only the humidity stream is kept, one row per device, and a new reading replaces the old one without emitting anything. A temperature card is not stored: it passes through, picks up the latest humidity of its device, and leaves as a joined record.",
+      note: "Another way to keep the state small: remember only the newest humidity reading of each device. A new reading replaces the old one and emits nothing. A temperature card is not stored: it picks up the latest humidity of its device and leaves as the joined record, like the table lookup of the first tab, but against live data.",
     },
   ];
   const lookup = () => mode.kind === "table" || mode.kind === "latest";   // only the right side is stored
