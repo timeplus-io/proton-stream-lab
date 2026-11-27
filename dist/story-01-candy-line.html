@@ -59,6 +59,8 @@ h1 { font: 400 clamp(34px, 6vw, 60px)/1 var(--font-title); margin: 2px 0 6px; le
 .stage .air .cs { display: none; }
 .stage .spark { display: none; }
 .stage .busy .spark { display: inline; }
+.stage .tag-down, .stage .low .tag-up { display: none; }
+.stage .low .tag-down { display: inline; }
 .stage .flag-t { font: 400 14px var(--font-hand); letter-spacing: .03em; fill: var(--ink); }
 .stage .flag-t.warn { fill: #b14a3a; }
 .stage .card-n { font: 400 18px var(--font-hand); fill: var(--ink); }
@@ -66,7 +68,8 @@ h1 { font: 400 clamp(34px, 6vw, 60px)/1 var(--font-title); margin: 2px 0 6px; le
 .stage .board-t { font: 400 19px var(--font-hand); letter-spacing: .14em; fill: var(--pencil); }
 .stage .board-r { font: 400 21px var(--font-hand); letter-spacing: .05em; fill: var(--ink); }
 .stage .board-n { font: 400 27px var(--font-hand); fill: var(--ink); }
-.stage .board-n.hot, .stage .hot .board-r { fill: #c4604f; }
+.stage .sheet-r { font: 400 16px var(--font-hand); letter-spacing: .05em; fill: var(--ink); }
+.stage .board-n.hot, .stage .hot .board-r, .stage .hot .sheet-r { fill: #c4604f; }
 .stage .halo { fill: none; stroke: #c4604f; stroke-width: 2.4; }
 .stage .banner { font: 400 30px var(--font-hand); letter-spacing: .12em; fill: #b14a3a; }
 .stage .plus { font: 400 22px var(--font-hand); fill: #c4604f; }
@@ -361,7 +364,7 @@ const Story = (() => {
 const Factory = (k) => {
   const { PAL, P, U, f, CS, SN } = k;
   const FX = 13, FY = 6.4, WH = 3.7;               // floor size and wall height
-  const TOP = 0.9, BW = 1.0, V = 1.3, SLAT = 0.6;  // a line: height of its top, its width, its speed
+  const TOP = 0.72, BW = 1.0, V = 1.3, SLAT = 0.6, LEG = TOP - 0.28;  // a line: height of its top (a worker's hip), its width, its speed
   const MAN = 1.15, R = 0.3, R_SMALL = 0.18;       // size of a worker, of a candy, of a small candy
   const FLAVORS = ["a", "b", "c"];
   const NAMES = { a: "ORANGE", b: "MINT", c: "GRAPE" };
@@ -386,7 +389,7 @@ const Factory = (k) => {
     h += k.edges(joints, { w: 0.7, op: 0.2, over: 0, amp: 0.5 });
     h += k.box(-0.3, -0.3, 0, 0.3, FY + 0.3, WH, PAL.wall) + k.box(0, -0.3, 0, FX, 0.3, WH, PAL.wall, { side: k.darker(PAL.wall, 0.09) });
     hatches.forEach(({ y, sign }) => {
-      const y0 = y - 0.72, y1 = y + 0.72, z0 = 0.5, z1 = 1.95, q = [L(y0, z0), L(y1, z0), L(y1, z1), L(y0, z1)];
+      const y0 = y - 0.72, y1 = y + 0.72, z0 = TOP - 0.4, z1 = TOP + 1.05, q = [L(y0, z0), L(y1, z0), L(y1, z1), L(y0, z1)];
       h += k.wash(q, PAL.dark);
       h += k.wash([P(0, y0, z0), P(0, y1, z0), P(-0.3, y1, z0), P(-0.3, y0, z0)], k.darker(PAL.wall, 0.3));     // the sill
       h += k.wash([P(0, y0, z0), P(0, y0, z1), P(-0.3, y0, z1), P(-0.3, y0, z0)], k.darker(PAL.wall, 0.45));    // the far jamb
@@ -427,9 +430,9 @@ const Factory = (k) => {
     const top = [P(x0, y0 + 0.08, TOP), P(x1, y0 + 0.08, TOP), P(x1, y1 - 0.08, TOP), P(x0, y1 - 0.08, TOP)];
     const legs = []; for (let x = x0 + (x0 === 0 ? 1.2 : 0.3); x < x1 - 1.2; x += 2.4) legs.push(x); legs.push(x1 - 0.3);
     let h = k.shadow([P(x0, y1), P(x1, y1), P(x1, y1 + 0.45), P(x0, y1 + 0.45)], 0.12);
-    h += legs.map((x) => k.box(x, y0 + 0.06, 0, 0.12, 0.12, 0.62, PAL.steel)).join("");
-    h += k.box(x0, y0, 0.62, x1 - x0, BW, TOP - 0.62, PAL.steel) + k.wash(top, PAL.belt) + k.loop(top, { w: 1 });
-    h += legs.map((x) => k.box(x, y1 - 0.18, 0, 0.12, 0.12, 0.62, PAL.steel)).join("");
+    h += legs.map((x) => k.box(x, y0 + 0.06, 0, 0.12, 0.12, LEG, PAL.steel)).join("");
+    h += k.box(x0, y0, LEG, x1 - x0, BW, TOP - LEG, PAL.steel) + k.wash(top, PAL.belt) + k.loop(top, { w: 1 });
+    h += legs.map((x) => k.box(x, y1 - 0.18, 0, 0.12, 0.12, LEG, PAL.steel)).join("");
     let lines = "";
     for (let x = x0 - SLAT; x < x1; x += SLAT) { const a = P(x, y0 + 0.12, TOP), b = P(x, y1 - 0.12, TOP); lines += `M${f(a[0])} ${f(a[1])}L${f(b[0])} ${f(b[1])}`; }
     h += `<defs><clipPath id="${id}"><path d="${path(top)}"/></clipPath></defs><g clip-path="url(#${id})"><g class="slats"><path d="${lines}" stroke="#c9c2b8" stroke-width="1.3" opacity=".75" fill="none"/></g></g>`;
@@ -441,9 +444,9 @@ const Factory = (k) => {
     const y0 = y - BW / 2;
     const legs = [x0 + 0.15, x1 - 0.27];
     return k.node(layer, k.shadow([P(x0, y0 + BW), P(x1, y0 + BW), P(x1, y0 + BW + 0.45), P(x0, y0 + BW + 0.45)], 0.12)
-      + legs.map((x) => k.box(x, y0 + 0.06, 0, 0.12, 0.12, 0.72, PAL.woodDark)).join("")
-      + k.box(x0, y0, 0.72, x1 - x0, BW, TOP - 0.72, PAL.wood)
-      + legs.map((x) => k.box(x, y0 + BW - 0.18, 0, 0.12, 0.12, 0.72, PAL.woodDark)).join(""));
+      + legs.map((x) => k.box(x, y0 + 0.06, 0, 0.12, 0.12, TOP - 0.18, PAL.woodDark)).join("")
+      + k.box(x0, y0, TOP - 0.18, x1 - x0, BW, 0.18, PAL.wood)
+      + legs.map((x) => k.box(x, y0 + BW - 0.18, 0, 0.12, 0.12, TOP - 0.18, PAL.woodDark)).join(""));
   }
   /* an open box on the floor; things dropped in go behind its front. Returns its middle. */
   function bin(L, x, y, w, d, h, col) {
@@ -453,45 +456,68 @@ const Factory = (k) => {
     return { x: x + w / 2, y: y + d / 2, h, mouth: P(x + w / 2, y + d / 2, h - 0.05), floor: P(x + w / 2, y + d / 2, 0.1) };
   }
 
-  /* ----- a worker: a paper doll whose hands go where the work is ----- */
+  /* ----- a worker: a paper doll that stands behind a line and works with its hands -----
+     Each arm has an elbow and a fixed length, so a hand only goes where an arm can reach.
+     The line is at hip height. A thing that passes at x = worker.x + GAP is right in front of the worker. */
+  const GAP = 0.75, ARM = 17 * MAN;                 // how far behind the middle of a line a worker stands; half the length of an arm
   function worker(L, o) {
-    const foot = P(o.x, o.y, 0), look = o.look ?? 0, coat = o.coat ?? PAL.blue;
+    const foot = P(o.x, o.y, 0), look = o.look ?? 0, coat = o.coat ?? PAL.blue, wide = 6.4 * MAN, phase = o.phase ?? 0;
     const body = k.node(L.dolls, `<g transform="scale(${MAN})">${k.doll({ look, coat })}</g>`);
-    const arms = k.SHOULDER.map(() => k.node(L.arms, `<g transform="scale(${MAN})">${k.arm({ look, coat })}</g>`));
-    const rest = [8, -8], cur = [{ a: 8, s: 1 }, { a: -8, s: 1 }];
-    let tilt = 0;
+    const arms = k.SHOULDER.map(() => k.node(L.arms, `<path class="ink" stroke-width="${f(wide + 2.6)}"/><path fill="none" stroke="${coat}" stroke-width="${f(wide)}" stroke-linecap="round" stroke-linejoin="round"/>${k.dot(0, 0, f(4.2 * MAN), PAL.skin[look], 1.2)}`));
+    const hand = [null, null];
+    let lean = 0, shift = 0;
     return {
-      foot, x: o.x, y: o.y, phase: o.phase ?? 0,
-      /* where the worker holds something up to look at it: beside the face, on the side of the line */
-      held: P(o.x - 0.3, o.y + 0.55, 1.1),
-      /* hands: a sheet point for each hand, or null to let that arm hang */
-      pose(now, dt, hands = [null, null]) {
-        const q = 1 - Math.exp(-dt * 16), aim = hands[0] || hands[1], [fx, fy] = foot;
-        tilt += ((aim ? Math.max(-5, Math.min(5, (aim[0] - fx) / 9)) : 0) - tilt) * q;
-        const lean = tilt + Math.sin(now * 1.7 + this.phase) * 0.8, bob = Math.sin(now * 2.2 + this.phase) * 0.6, a = (lean * Math.PI) / 180;
-        body.setAttribute("transform", `translate(${f(fx)} ${f(fy + bob)}) rotate(${lean.toFixed(2)})`);
+      foot, x: o.x, y: o.y,
+      /* where the worker holds a thing to work on it: in front of the chest. Returns where the foot of a thing h tall goes. */
+      chest: (h = R * U) => [foot[0], foot[1] - 34 * MAN + h],
+      /* hands: a sheet point for each hand, or null to let that arm hang. A point out of reach is reached for, a point far away is ignored. */
+      pose(now, dt, want = [null, null]) {
+        const q = 1 - Math.exp(-dt * 12), near = 1 - Math.exp(-dt * 32), [fx, fy] = foot;
+        const live = want.filter(Boolean), aim = live.length ? live.reduce((a, p) => a + p[0], 0) / live.length - fx : 0;
+        lean += (Math.max(-3, Math.min(3, aim / 10)) - lean) * q; shift += (Math.max(-4, Math.min(4, aim / 9)) - shift) * q;
+        const tilt = lean + Math.sin(now * 1.3 + phase) * 0.5, bob = Math.sin(now * 2 + phase) * 0.5, a = (tilt * Math.PI) / 180, bx = fx + shift, by = fy + bob;
+        body.setAttribute("transform", `translate(${f(bx)} ${f(by)}) rotate(${tilt.toFixed(2)})`);
         k.SHOULDER.forEach(([sx, sy], i) => {
-          const x = fx + MAN * (sx * Math.cos(a) - sy * Math.sin(a)), y = fy + bob + MAN * (sx * Math.sin(a) + sy * Math.cos(a));
-          let ta = rest[i], ts = 1;
-          if (hands[i]) { const dx = hands[i][0] - x, dy = hands[i][1] - y; ta = (Math.atan2(-dx, dy) * 180) / Math.PI; ts = Math.max(0.7, Math.min(1.9, Math.hypot(dx, dy) / (24 * MAN))); }
-          let da = ta - cur[i].a; da -= Math.round(da / 360) * 360;
-          cur[i].a += da * q; cur[i].s += (ts - cur[i].s) * q;
-          arms[i].setAttribute("transform", `translate(${f(x)} ${f(y)}) rotate(${cur[i].a.toFixed(1)}) scale(1 ${cur[i].s.toFixed(3)})`);
+          const side = i ? 1 : -1, S = [bx + MAN * (sx * Math.cos(a) - sy * Math.sin(a)), by + MAN * (sx * Math.sin(a) + sy * Math.cos(a))];
+          let T = want[i];
+          if (T && Math.hypot(T[0] - S[0], T[1] - S[1]) > ARM * 3.2) T = null;
+          if (!T) T = [S[0] + side * 6, S[1] + ARM * 1.62];                 // at rest the arm hangs, a little bent
+          const h = hand[i] || (hand[i] = [T[0], T[1]]), far = Math.hypot(T[0] - h[0], T[1] - h[1]), e = far < 10 ? near : q;
+          h[0] += (T[0] - h[0]) * e; h[1] += (T[1] - h[1]) * e;
+          let vx = h[0] - S[0], vy = h[1] - S[1], d = Math.hypot(vx, vy) || 1;
+          const reach = Math.min(d, ARM * 2 - 0.6), H = [S[0] + (vx / d) * reach, S[1] + (vy / d) * reach], off = Math.sqrt(Math.max(0, ARM * ARM - (reach * reach) / 4));
+          let px = -vy / d, py = vx / d; if (px * side * 0.5 + py * 0.85 < 0) { px = -px; py = -py; }     // the elbow points out and down
+          const E = [(S[0] + H[0]) / 2 + px * off, (S[1] + H[1]) / 2 + py * off], path = `M${f(S[0])} ${f(S[1])}L${f(E[0])} ${f(E[1])}L${f(H[0])} ${f(H[1])}`;
+          const [outer, inner, palm] = arms[i].children;
+          outer.setAttribute("d", path); inner.setAttribute("d", path); palm.setAttribute("cx", f(H[0])); palm.setAttribute("cy", f(H[1]));
         });
       },
     };
   }
-  /* both hands on a thing at sheet point p */
-  const grip = (p, r = 10) => (p ? [[p[0] - r, p[1] - r], [p[0] + r, p[1] - r]] : [null, null]);
+  /* both hands on a thing: p is the middle of the thing on the sheet, r half its width */
+  const grip = (p, r = 10) => (p ? [[p[0] - r, p[1]], [p[0] + r, p[1]]] : [null, null]);
 
   /* ----- things that travel ----- */
   const spark = (r) => `<path class="ink spark" d="M${f(-r * 1.25)} ${f(-r * 0.9)}L${f(-r * 1.75)} ${f(-r * 1.3)}M0 ${f(-r * 1.5)}L0 ${f(-r * 2.1)}M${f(r * 1.25)} ${f(-r * 0.9)}L${f(r * 1.75)} ${f(-r * 1.3)}" stroke-width="1.5"/>`;
   /* a small paper tag on a pin above a thing r tall-ish: a time stamp or a name */
-  function flagArt(text, top, warn) {
+  function flagArt(text, top, warn, pin = true) {
     const w = text.length * 8.6 + 12;
-    return `<path class="ink" d="M0 ${f(top)}L0 ${f(top - 9)}" stroke-width="1.1"/>`
+    return (pin ? `<path class="ink" d="M0 ${f(top)}L0 ${f(top - 9)}" stroke-width="1.1"/>` : "")
       + `<path d="M${f(-w / 2)} ${f(top - 27)}L${f(w / 2)} ${f(top - 27)}L${f(w / 2)} ${f(top - 9)}L${f(-w / 2)} ${f(top - 9)}Z" fill="${warn ? "#fbe1da" : PAL.white}" class="ink-f" stroke-width="1.1"${warn ? ' style="stroke:#c4604f"' : ""}/>`
       + `<text class="flag-t${warn ? " warn" : ""}" x="0" y="${f(top - 13.2)}" text-anchor="middle">${text}</text>`;
+  }
+  /* a yellow sticky note with its lower edge at y = bottom */
+  function noteArt(text, bottom = 0) {
+    const w = text.length * 8.6 + 12;
+    return `<g transform="translate(0 ${f(bottom)}) rotate(-3)"><path d="M${f(-w / 2)} -18L${f(w / 2)} -18L${f(w / 2)} 0L${f(-w / 2)} 0Z" fill="#f6dc7f" class="ink-f" stroke-width="1.1"/><text class="flag-t" x="0" y="-4.4" text-anchor="middle">${text}</text></g>`;
+  }
+  /* What a thing carries: its tag, and a note that was stuck on. On a line they stand above the thing.
+     In a worker's hands, and until the thing has moved clear of the worker, they hang below it, so that they do not cover the worker. */
+  function tags(it, top, bottom) {
+    if (!it.flag && !it.note) return "";
+    const up = (it.flag ? flagArt(it.flag, top, it.warn) : "") + (it.note ? noteArt(it.note, top - (it.flag ? 28 : 9)) : "");
+    const down = (it.flag ? flagArt(it.flag, bottom + 30, it.warn, false) : "") + (it.note ? noteArt(it.note, bottom + (it.flag ? 41 : 22)) : "");
+    return `<g class="tag-up">${up}</g><g class="tag-down">${down}</g>`;
   }
   function candyArt(it) {
     const r = it.r * U, col = it.grey ? "#cfc8bd" : PAL[it.flavor], pts = [];
@@ -506,7 +532,7 @@ const Factory = (k) => {
       h += k.shape(ball, col, 1.4);
       h += `<path d="M${f(-r * 0.55)} ${f(-r * 0.25)}Q${f(-r * 0.5)} ${f(-r * 0.62)} ${f(-r * 0.12)} ${f(-r * 0.66)}" stroke="#fffaf0" stroke-width="${f(r * 0.2)}" stroke-linecap="round" fill="none" opacity=".75"/>`;
     }
-    return `<g transform="translate(0 ${f(-r)})">${h}${spark(r)}</g>` + (it.flag ? flagArt(it.flag, -2 * r - 1, it.warn) : "");
+    return `<g transform="translate(0 ${f(-r)})">${h}${spark(r)}</g>` + tags(it, -2 * r - 1, 0);
   }
   /* a paper cup, about as big as a candy */
   function cupArt(it) {
@@ -515,22 +541,23 @@ const Factory = (k) => {
     h += k.shape(`M${-t} ${-hgt}L${-b} -2Q0 3 ${b} -2L${t} ${-hgt}Z`, col, 1.4);
     h += `<path class="ink" d="M-5.5 ${-hgt + 4}L-3.6 -1M5.5 ${-hgt + 4}L3.6 -1M0 ${-hgt + 5}L0 0" stroke-width=".9" opacity=".6"/>`;
     h += k.shape(`M${-t} ${-hgt}A${t} 5 0 1 0 ${t} ${-hgt}A${t} 5 0 1 0 ${-t} ${-hgt}Z`, k.darker(col, 0.35), 1.3);
-    return h + `<g transform="translate(0 -10)">${spark(13)}</g>` + (it.flag ? flagArt(it.flag, -hgt - 6, it.warn) : "");
+    return h + `<g transform="translate(0 -10)">${spark(13)}</g>` + tags(it, -hgt - 6, 2);
   }
   const artOf = (it) => (it.kind === "cup" ? cupArt(it) : candyArt(it));
-  /* make a candy or a cup. o: { kind, flavor, small, flag: text on a tag, warn: a red tag, grey: no longer of use } */
+  /* make a candy or a cup. o: { kind, flavor, small, flag: text on a tag, warn: a red tag, note: text on a sticky note, grey: no longer of use } */
   function thing(layer, o) {
     const it = { id: ++uid, kind: "candy", wrapped: false, ...o }; it.r = it.small ? R_SMALL : R;
     it.el = k.node(layer, artOf(it));
     return it;
   }
   const redraw = (it) => { it.el.innerHTML = artOf(it); };
-  /* put a thing at a sheet point. o: { s: scale, rot: degrees, air: off the line, busy: being worked on } */
+  /* put a thing at a sheet point. o: { s: scale, rot: degrees, air: off the line, busy: being worked on, low: its tags hang below it } */
   function put(it, p, o = {}) {
     it.pos = p;
     it.el.setAttribute("transform", `translate(${f(p[0])} ${f(p[1])})${o.rot ? ` rotate(${o.rot.toFixed(1)})` : ""}${o.s != null && o.s !== 1 ? ` scale(${o.s.toFixed(3)})` : ""}`);
     if (!!o.air !== !!it.air) { it.air = !!o.air; it.el.classList.toggle("air", it.air); }
     if (!!o.busy !== !!it.busy) { it.busy = !!o.busy; it.el.classList.toggle("busy", it.busy); }
+    if (!!o.low !== !!it.low) { it.low = !!o.low; it.el.classList.toggle("low", it.low); }
   }
   /* A report card: a piece of paper that stands up and faces the reader.
      o.head: a first line of small text; o.parts: [{ flavor, n }]; o.pair: a flavor, drawn as a candy in its cup */
@@ -567,87 +594,96 @@ const Factory = (k) => {
     fly(it.el, from, b.mouth, now, 0.42, { arc: 26, it, done: () => fly(it.el, b.mouth, b.floor, now + 0.42, 0.22, { it, done: () => { it.el.remove(); if (done) done(); } }) });
   }
 
-  return { FX, FY, WH, TOP, BW, V, MAN, R, R_SMALL, FLAVORS, NAMES, path, onLeft, onBack, panel, room, clockHands, belt, rack, bin, worker, grip,
-    thing, redraw, put, card, cardArt, flagArt, fly, run, reset, drop };
+  return { FX, FY, WH, TOP, BW, V, MAN, R, R_SMALL, FLAVORS, NAMES, GAP, path, onLeft, onBack, panel, room, clockHands, belt, rack, bin, worker, grip,
+    thing, redraw, put, card, cardArt, flagArt, noteArt, fly, run, reset, drop };
 };
 
 </script>
 <script>
-/* Story 01, The candy line.
-   A stream is a line that never ends, an event is one candy, an operator is a worker on the line.
+/* Story 01, The candy line. It follows lab 01, stateless transform, tab by tab.
+   A stream is a line that never ends. An event is one candy: its flavor is the key, the weight on its tag is the value,
+   and the clock tells its time. An operator is a worker who handles one candy at a time and remembers nothing.
    The same candies come out of the kitchen in every scene; only the workers change. */
 (() => {
-  const X1 = 10.6, BY = 3.9, WY = 2.95;   // the line ends at X1 and runs along y = BY; workers stand at y = WY, just behind it
-  const HOLD = 0.8, LIFT = 0.42;          // how long a worker has a candy in hand, and how high it is lifted
+  const X1 = 10.6, BY = 3.9;                 // the line ends at X1 and runs along y = BY
+  const HOLD = 0.8;                          // seconds a worker has a candy in hand
+  const LIMIT = 30, RATE = 2;                // the filter keeps candies heavier than LIMIT grams; the price is RATE cents a gram
   const CLOCK = [5.9, 2.85, 0.6];
 
   const SCENES = [
-    { id: "line", label: "The line", stations: [{ kind: "watch", x: 5.2 }],
-      story: "A stream is like this candy line. It has no last candy. Each one rolls out of the kitchen at its own moment, and the clock on the wall keeps the time. Nobody waits for the batch to be finished, because it never is." },
-    { id: "inspector", label: "The inspector", stations: [{ kind: "filter", x: 5.2 }],
-      story: "A worker on the line picks up one candy at a time and decides on the spot. Big enough goes back on the line. Too small goes in the bin. The worker needs no memory of the candies before. Engineers call this a filter." },
-    { id: "wrapper", label: "The wrapper", stations: [{ kind: "wrap", x: 5.2 }],
-      story: "This worker changes every candy. One raw candy comes in, one wrapped candy goes out, and the line never stops for it. Engineers call this a transform." },
-    { id: "both", label: "The whole line", stations: [{ kind: "filter", x: 3.4 }, { kind: "wrap", x: 7.4 }],
-      story: "Workers stand in a row and each one does a small job. Raw candy goes in on the left and finished candy comes out on the right, a moment after it arrived. That is stream processing: the work happens while things move." },
+    { id: "line", label: "The line", stations: [{ kind: "watch", x: 4.6 }],
+      story: "A stream is like this candy line. It has no last candy. Each candy is one event: it has a flavor, a weight on its tag, and the moment it rolled out of the kitchen, which the clock on the wall keeps. Candies come when they come, so the gaps are uneven. Nobody waits for the batch to be finished, because it never is: every candy goes out the moment it arrives." },
+    { id: "inspector", label: "The inspector", stations: [{ kind: "filter", x: 4.6 }],
+      story: `The worker picks up one candy at a time and decides on the spot. Heavier than ${LIMIT} grams goes back on the line, unchanged. ${LIMIT} grams or less goes in the bin. Nothing is remembered from one candy to the next. Engineers call this a filter.` },
+    { id: "pricer", label: "The price", stations: [{ kind: "price", x: 4.6 }],
+      story: `One candy in, one candy out. The worker wraps each candy and works out a new number from the old one: ${RATE} cents for every gram. The flavor and the time stay the same, and again nothing is remembered. Engineers call this a transform.` },
+    { id: "both", label: "The whole line", stations: [{ kind: "filter", x: 2.9 }, { kind: "price", x: 6.9 }],
+      story: "Workers stand in a row and each one does a small job: the first takes out the light candies, the second wraps and prices the rest. Every candy is still handled on its own. That is why this line can stop and start again at any candy, with nothing to remember. Engineers call such work stateless." },
   ];
 
-  let k, F, P, U, rnd, sc, L, line, ship, hands, items, stations, nextBorn, smallRun, lastFlavor, counts;
+  let k, F, P, U, rnd, sc, L, line, ship, hands, items, stations, nextBorn, lightRun, lastFlavor, counts;
+  const ease = (u) => { const v = Math.max(0, Math.min(1, u)); return v * v * (3 - 2 * v); };
 
   function station(def, i) {
-    const PAL = k.PAL, look = { watch: 0, filter: 1, wrap: 2 }[def.kind], coat = { watch: PAL.green, filter: PAL.blue, wrap: PAL.red }[def.kind];
-    if (def.kind === "wrap") k.node(L.dolls, k.box(def.x + 0.8, WY - 0.75, 0, 0.9, 0.7, 0.8, PAL.wood) + k.cyl(def.x + 1.25, WY - 0.4, 0.8, 0.2, 0.45, PAL.white));   // a roll of wrapping paper
-    const st = { ...def, who: F.worker(L, { x: def.x, y: WY, look, coat, phase: i * 1.7 }), cur: null, let: -9 };
-    if (def.kind === "filter") st.bin = F.bin(L, def.x + 0.15, BY + 1.3, 1.2, 1.0, 0.7, PAL.red);
+    const PAL = k.PAL, look = { watch: 0, filter: 1, price: 2 }[def.kind], coat = { watch: PAL.green, filter: PAL.blue, price: PAL.red }[def.kind];
+    const st = { ...def, who: F.worker(L, { x: def.x, y: BY - F.GAP, look, coat, phase: i * 1.7 }), cur: null, pick: def.x - 0.1 };
+    if (def.kind === "filter") st.bin = F.bin(L, def.x + 0.1, BY + 1.2, 1.2, 1.0, 0.7, PAL.red);
     return st;
   }
 
   function newCandy(born) {
-    let small = rnd() < 0.34;
-    if (small && smallRun >= 2) small = false;
-    smallRun = small ? smallRun + 1 : 0;
+    let light = rnd() < 0.3;
+    if (light && lightRun >= 2) light = false;
+    lightRun = light ? lightRun + 1 : 0;
+    const grams = light ? 22 + Math.floor(rnd() * 9) : 31 + Math.floor(rnd() * 9);      // 22 to 30, or 31 to 39
     let fl = F.FLAVORS[Math.floor(rnd() * 3)];
     if (fl === lastFlavor && rnd() < 0.6) fl = F.FLAVORS[(F.FLAVORS.indexOf(fl) + 1) % 3];
     lastFlavor = fl;
-    const it = F.thing(L.candy, { flavor: fl, small }); it.born = born; it.state = "line"; it.done = 0;
+    const it = F.thing(L.candy, { flavor: fl, small: light, flag: grams + " g" }); it.grams = grams; it.born = born; it.state = "line"; it.done = 0;
     items.push(it);
     return it;
   }
-  const gap = () => (rnd() < 0.2 ? 0.85 + rnd() * 0.2 : 1.3 + rnd() * 2.1);    // candies come unevenly, sometimes two close together
+  const gap = () => (rnd() < 0.2 ? 0.95 + rnd() * 0.2 : 1.4 + rnd() * 2.1);    // candies come unevenly, sometimes two close together
 
   /* what a worker does to the candy in hand */
   function work(it, st, now, quiet) {
-    if (st.kind === "watch") { if (!quiet) counts.seen++; }
-    else if (st.kind === "wrap") { it.wrapped = true; F.redraw(it); if (!quiet) counts.wrapped++; }
-    else if (it.small) {
-      it.state = "out";
-      if (quiet) it.el.remove(); else { it.el.classList.remove("busy"); F.drop(it, it.pos, st.bin, now); st.let = now; st.toss = it; counts.small++; }
-    } else if (!quiet) counts.passed++;
+    if (st.kind === "watch") { if (!quiet) counts.seen++; return; }
+    if (st.kind === "price") { it.wrapped = true; it.flag = it.grams * RATE + "¢"; F.redraw(it); if (!quiet) counts.priced++; return; }
+    if (it.grams > LIMIT) { if (!quiet) counts.passed++; return; }
+    it.state = "out";
+    if (quiet) it.el.remove(); else { it.el.classList.remove("busy"); F.drop(it, it.pos, st.bin, now); st.toss = it; st.let = now; counts.light++; }
   }
 
   function place(it, now) {
     if (it.state !== "line") return;
     const x = F.V * (now - it.born), next = stations[it.done];
-    if (!it.act && next && x >= next.x - (F.V * HOLD) / 2) { it.act = { st: next, t0: now, did: false }; next.cur = it; it.done++; }
-    let z = F.TOP, o = {};
+    if (!it.act && next && x >= next.pick) { it.act = { st: next, t0: now, did: false }; next.cur = it; it.done++; }
+    let p = P(x, BY, F.TOP), o = {};
     if (it.act) {
-      const a = it.act, u = (now - a.t0) / HOLD, light = a.st.kind === "watch";
-      z += (light ? 0.14 : LIFT) * Math.sin(Math.PI * Math.min(1, u));
-      o = { air: !light, busy: !light && u > 0.2 && u < 0.85, rot: a.st.kind === "wrap" ? 12 * Math.sin(u * Math.PI * 4) : 0, s: a.st.kind === "wrap" && a.did ? 1 + 0.3 * Math.sin(Math.PI * Math.min(1, (u - 0.5) * 2.4)) : 1 };
+      const a = it.act, u = (now - a.t0) / HOLD;
+      if (a.st.kind !== "watch") {
+        // off the line and up to the chest, worked on there, then down again a little further along, where the line has moved to meanwhile
+        const from = P(a.st.pick, BY, F.TOP), to = P(a.st.pick + F.V * HOLD, BY, F.TOP), c = a.st.who.chest(it.r * U);
+        const up = ease(u / 0.3), down = ease((u - 0.7) / 0.3), q = u < 0.5 ? [from[0] + (c[0] - from[0]) * up, from[1] + (c[1] - from[1]) * up] : [c[0] + (to[0] - c[0]) * down, c[1] + (to[1] - c[1]) * down];
+        p = [q[0], q[1] - 5 * Math.sin(Math.PI * (u < 0.5 ? up : down))];
+        it.clear = a.st.pick + F.V * HOLD + 0.75;
+        o = { air: u > 0.06 && u < 0.94, low: u > 0.06, busy: u > 0.3 && u < 0.7, rot: a.st.kind === "price" && u > 0.3 && u < 0.7 ? 10 * Math.sin((u - 0.3) * Math.PI * 7.5) : 0 };
+      }
       if (u >= 0.5 && !a.did) { a.did = true; work(it, a.st, now, false); if (it.state !== "line") { a.st.cur = null; return; } }
-      if (u >= 1) { it.act = null; if (a.st.cur === it) a.st.cur = null; o = {}; z = F.TOP; }
+      if (u >= 1) { it.act = null; if (a.st.cur === it) a.st.cur = null; p = P(x, BY, F.TOP); o = {}; }
     }
+    if (!it.act && it.clear) { if (x < it.clear) o.low = true; else it.clear = null; }     // its tag stays low until it is clear of the worker
     if (x >= X1) { it.state = "out"; F.drop(it, P(X1, BY, F.TOP), ship, now); return; }
-    F.put(it, P(x, BY, z), o);
+    F.put(it, p, o);
     it.el.style.opacity = Math.max(0, Math.min(1, (x - 0.05) / 0.3));
   }
 
   function workers(now, dt) {
     stations.forEach((st) => {
       let h = [null, null];
-      const it = st.cur, r = it ? it.r * U : 0;
-      if (it && it.pos) h = st.kind === "watch" ? [[it.pos[0] - 2, it.pos[1] - 2 * r - 2], null] : F.grip([it.pos[0], it.pos[1] - r], r * 0.9);
-      else if (st.toss && now - st.let < 0.2 && st.toss.pos) h = F.grip(st.toss.pos, 8);     // the hands follow a candy they throw away
+      const it = st.cur || items.find((c) => c.state === "line" && c.done === stations.indexOf(st) && F.V * (now - c.born) > st.pick - 0.3);    // the next candy is reached for a moment before it is taken
+      if (it && it.pos) { const mid = [it.pos[0], it.pos[1] - it.r * U]; h = st.kind === "watch" ? [[mid[0], mid[1] - it.r * U], null] : F.grip(mid, it.r * U * 0.85); }
+      else if (st.toss && now - st.let < 0.16 && st.toss.pos) h = [[st.toss.pos[0], st.toss.pos[1] - 12], null];     // the hand follows a candy it throws away
       st.who.pose(now, dt, h);
     });
   }
@@ -656,24 +692,24 @@ const Factory = (k) => {
   function labels() {
     const first = stations[0], last = stations[stations.length - 1], head = (st) => [st.who.foot[0] + 15 * F.MAN, st.who.foot[1] - 60 * F.MAN];
     const list = [
-      { title: "KITCHEN", note: "candies come out one by one", x: 56, y: 150, side: "start", to: P(0, BY + 0.3, 1.7) },
-      { title: "THE LINE", note: "never stops, never ends", x: 56, y: 486, side: "start", to: P(1.9, BY + 0.5, F.TOP) },
+      { title: "KITCHEN", note: "candies come out one by one", x: 56, y: 150, side: "start", to: P(0, BY + 0.3, 1.6) },
+      { title: "CANDY", note: "its flavor, and its weight on a tag", x: 56, y: 486, side: "start", to: P(1.5, BY + 0.5, F.TOP) },
       { title: "CLOCK", note: "every candy has its moment", x: 1344, y: 130, side: "end", to: P(CLOCK[0] + 0.45, 0, CLOCK[1] + 0.2) },
       { title: "SHIPPING", note: "out as soon as it is ready", x: 1344, y: 650, side: "end", to: P(X1 + 1.9, BY + 0.2, 0.55) },
     ];
     const who = (st, title, note, y) => list.push({ title, note, x: 1344, y, side: "end", to: head(st) });
-    if (sc.id === "line") who(first, "WORKER", "gives each candy a pat as it passes", 300);
-    if (sc.id === "inspector") who(first, "INSPECTOR", "one look, one decision", 300);
-    if (sc.id === "wrapper") who(first, "WRAPPER", "one in, one out, changed", 300);
-    if (sc.id === "both") { who(first, "INSPECTOR", "first job: pick", 250); who(last, "WRAPPER", "second job: wrap", 380); }
+    if (sc.id === "line") who(first, "WORKER", "lets every candy pass as it is", 300);
+    if (sc.id === "inspector") who(first, "INSPECTOR", `keeps what is heavier than ${LIMIT} g`, 300);
+    if (sc.id === "pricer") who(first, "PRICER", `wraps it and writes ${RATE}¢ a gram`, 300);
+    if (sc.id === "both") { who(first, "INSPECTOR", "first job: pick", 250); who(last, "PRICER", "second job: wrap and price", 380); }
     const fl = stations.find((s) => s.bin);
-    if (fl) list.push({ title: "TOO SMALL", note: "off the line, for good", x: 56, y: 660, side: "start", to: P(fl.bin.x - 0.45, fl.bin.y + 0.5, 0.45) });
+    if (fl) list.push({ title: "TOO LIGHT", note: `${LIMIT} g or less: off the line`, x: 56, y: 660, side: "start", to: P(fl.bin.x - 0.45, fl.bin.y + 0.5, 0.45) });
     k.setLabels(list);
   }
 
   function init(kit, scene) {
-    k = kit; F = Factory(kit); P = kit.P; U = kit.U; sc = scene; rnd = kit.rng(7);
-    items = []; smallRun = 0; lastFlavor = null; counts = { seen: 0, passed: 0, small: 0, wrapped: 0 };
+    k = kit; F = Factory(kit); P = kit.P; U = kit.U; sc = scene; rnd = kit.rng(7); F.reset();
+    items = []; lightRun = 0; lastFlavor = null; counts = { seen: 0, passed: 0, light: 0, priced: 0 };
     F.room({ window: [1.2, 3.3], clock: CLOCK, door: 11.2 });
     // the moving part of the sheet, back to front
     L = { clock: k.layer(), dolls: k.layer(), belt: k.layer(), under: k.layer(), candy: k.layer(), arms: k.layer(), over: k.layer() };
@@ -687,7 +723,7 @@ const Factory = (k) => {
     nextBorn = -X1 / F.V + 0.4;
     while (nextBorn <= 0) {
       const it = newCandy(nextBorn), x = -F.V * it.born;
-      while (it.state === "line" && it.done < stations.length && x >= stations[it.done].x) work(it, stations[it.done++], 0, true);
+      while (it.state === "line" && it.done < stations.length && x >= stations[it.done].pick) work(it, stations[it.done++], 0, true);
       nextBorn += gap();
     }
     tick(0, 0);
@@ -705,9 +741,9 @@ const Factory = (k) => {
   function status() {
     const n = (v, one, many) => `${v} ${v === 1 ? one : many}`;
     if (sc.id === "line") return n(counts.seen, "candy", "candies") + " so far";
-    if (sc.id === "inspector") return `${counts.passed} passed · ${counts.small} too small`;
-    if (sc.id === "wrapper") return `${counts.wrapped} wrapped`;
-    return `${counts.wrapped} wrapped · ${counts.small} too small`;
+    if (sc.id === "inspector") return `${counts.passed} passed · ${counts.light} too light`;
+    if (sc.id === "pricer") return `${counts.priced} priced`;
+    return `${counts.priced} priced · ${counts.light} too light`;
   }
 
   Story.start({ scenes: SCENES, init, tick, status });

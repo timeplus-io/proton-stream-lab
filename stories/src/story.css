@@ -47,6 +47,8 @@ h1 { font: 400 clamp(34px, 6vw, 60px)/1 var(--font-title); margin: 2px 0 6px; le
 .stage .air .cs { display: none; }
 .stage .spark { display: none; }
 .stage .busy .spark { display: inline; }
+.stage .tag-down, .stage .low .tag-up { display: none; }
+.stage .low .tag-down { display: inline; }
 .stage .flag-t { font: 400 14px var(--font-hand); letter-spacing: .03em; fill: var(--ink); }
 .stage .flag-t.warn { fill: #b14a3a; }
 .stage .card-n { font: 400 18px var(--font-hand); fill: var(--ink); }
@@ -54,7 +56,8 @@ h1 { font: 400 clamp(34px, 6vw, 60px)/1 var(--font-title); margin: 2px 0 6px; le
 .stage .board-t { font: 400 19px var(--font-hand); letter-spacing: .14em; fill: var(--pencil); }
 .stage .board-r { font: 400 21px var(--font-hand); letter-spacing: .05em; fill: var(--ink); }
 .stage .board-n { font: 400 27px var(--font-hand); fill: var(--ink); }
-.stage .board-n.hot, .stage .hot .board-r { fill: #c4604f; }
+.stage .sheet-r { font: 400 16px var(--font-hand); letter-spacing: .05em; fill: var(--ink); }
+.stage .board-n.hot, .stage .hot .board-r, .stage .hot .sheet-r { fill: #c4604f; }
 .stage .halo { fill: none; stroke: #c4604f; stroke-width: 2.4; }
 .stage .banner { font: 400 30px var(--font-hand); letter-spacing: .12em; fill: #b14a3a; }
 .stage .plus { font: 400 22px var(--font-hand); fill: #c4604f; }

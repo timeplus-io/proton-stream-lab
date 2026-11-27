@@ -21,26 +21,27 @@ It is plain SVG with no libraries. There is no SQL on these pages. The Stream La
 | In the story | In stream processing |
 |---|---|
 | the production line, which never stops | a stream |
-| one candy on the line | one event |
+| one candy on the line: its flavor, the weight on its tag, the time on its stamp | one event: its key, its value, its event time |
 | a worker at the line | an operator |
 | the clock on the wall | time |
 | raw candy in, finished candy or a report card out | input stream, output stream |
 | a tally board, a rack | state: what a worker has to remember |
-| a chart on the wall that never changes | a table |
+| a recipe sheet that never changes; a note from it stuck on a candy | a table; a joined column |
 
 | # | Story | Scenes | Engineer episode |
 |---|---|---|---|
-| 01 | [The candy line](dist/story-01-candy-line.html) ([preview](https://claude.ai/artifact/R493f7zWncGesHC1xrh1FQ)) | the line, the inspector (filter), the wrapper (transform), the whole line | 01 Stateless transform |
-| 02 | [The tally board](dist/story-02-tally-board.html) ([preview](https://claude.ai/artifact/RVBX5zR6T1nTExjA3uSyLW)) | keep a tally (a card every 2 seconds), every change, time slots (windows), a late candy, wait a little | 02 Streaming aggregation |
-| 03 | [Two lines meet](dist/story-03-two-lines.html) ([preview](https://claude.ai/artifact/PiEduM87snHWvJE5bB18q7)) | look it up (a chart on the wall), keep everything (the racks fill up), only fresh ones (within 5 seconds), keep the newest | 03 Streaming join |
+| 01 | [The candy line](dist/story-01-candy-line.html) ([preview](https://claude.ai/artifact/R493f7zWncGesHC1xrh1FQ)) | the line (pass through), the inspector (keeps what is heavier than 30 g), the price (2¢ a gram), the whole line | 01 Stateless transform |
+| 02 | [The tally board](dist/story-02-tally-board.html) ([preview](https://claude.ai/artifact/RVBX5zR6T1nTExjA3uSyLW)) | keep a tally (every 2 seconds a card per flavor), every change, time slots (windows), a late candy, wait a little | 02 Streaming aggregation |
+| 03 | [The recipe sheet](dist/story-03-two-lines.html) ([preview](https://claude.ai/artifact/PiEduM87snHWvJE5bB18q7)) | the recipe sheet (stream and table). To come: slips that arrive on a second line and change the sheet (stream and stream, within 5 seconds, latest) | 03 Streaming join |
 
 Rules for a story:
 
 - One room seen from a fixed isometric view. The lines run from the upper left to the lower right, and until Pause.
-- The worker visibly does the work: every candy or cup is picked up, held, worked on and put down again, so the reader sees the operator process each event.
+- A story follows its lab tab by tab: the same data (key, value, time), the same rule, the same output. Only the words and the props change.
+- The worker visibly does the work, and moves like a person: stands behind the line, which is at hip height, takes a candy when it is within reach, works on it in front of the chest and puts it down again. Arms have elbows and a fixed length; nothing flies into a hand from across the room.
+- A join is a note from the recipe sheet stuck on the candy: the worker finds the row that belongs to the candy and sticks a copy of it on.
 - Keep every element clean and clear: nothing in the room that the scene does not use, and nothing overlapping.
 - What a worker has to remember is a thing in the room (a tally board, a rack), and a result that is not the thing itself is a card that travels out on its own line.
-- Two streams are two lines from two openings in the wall, each with its own sign and its own rack.
 - Margin labels name only what the scene is about. Each scene has one short caption that states the idea in plain words and gives the engineer's word last.
 
 The look follows the tradition of hand-drawn isometric explainer sheets, and April Zhu's Tinycharts was the reference for it. All drawing code in `stories/` is written for this repo; none of the Tinycharts kit is used or included.
@@ -82,7 +83,7 @@ src/lab-shell.html  page template (title, tabs, legend, stage, SQL, caption)
 episodes/NN-*/episode.js   one file per episode: tabs, event generator, operator logic, rendering
 episodes.json       episode metadata
 stories/src/story.js          shared SVG kit: isometric point, hand-ruled ink, marker wash, boxes, paper dolls, margin labels, scene buttons
-stories/src/factory.js        the candy factory every story is set in: room, lines, racks, bins, workers whose hands follow the work, candies, cups, cards
+stories/src/factory.js        the candy factory every story is set in: room, lines, racks, bins, workers with jointed arms, candies with tags and sticky notes, cards
 stories/src/story.css         the paper sheet, hand-lettered labels, page around it (light + dark)
 stories/src/story-shell.html  page template for a story
 stories/episodes/NN-*/episode.js   one file per story: scenes, what arrives when, what the worker does with it

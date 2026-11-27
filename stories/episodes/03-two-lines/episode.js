@@ -1,260 +1,122 @@
-/* Story 03, Two lines meet.
-   Bringing two things together. First a candy and a chart on the wall, which never changes.
-   Then two lines that both move: candies and cups. A candy and a cup of the same flavor make a pair,
-   the racks are what the worker has to remember, and the three scenes are three ways to keep the racks from filling up. */
+/* Story 03, The recipe sheet. It follows lab 03, streaming join.
+   A join adds something to each candy from another place. Here that place is a recipe sheet next to the worker:
+   one row for each flavor. For every candy the worker finds the row of its flavor, takes a sticky note with what
+   the row says, and sticks it on the candy. The sheet is the table; it does not move and no candy is kept. */
 (() => {
-  const CLOCK = [2.2, 2.85, 0.6];
-  /* scene 1: one line and a chart on the wall */
-  const BY = 3.9, WY = 2.95, SX = 5.2, X1 = 10.6, HOLD = 1.0, LIFT = 0.42;
-  const CH = { x: 6.9, w: 2.7, z: 3.35, h: 2.15 };
-  /* scenes 2 to 4: cups come in at the back, candies at the front, the worker stands between them */
-  const YB = 1.4, YF = 5.1, YM = 3.25, XE = 3.0;                // the two lines end at XE; the cards leave along y = YM
-  const WX = 3.6, WYM = 2.9;                                    // where the worker stands
-  const S0 = 5.4, DS = 0.68, SIZE = 6;                           // places on a rack
-  const OUT0 = 9.4, LAND = 9.8, OUT1 = 11.0;                    // the line the pair cards leave on
-  const FRESH = 5;                                              // seconds a thing stays fresh
+  const X1 = 10.6, BY = 3.9, WX = 4.6;       // the line ends at X1 and runs along y = BY; the worker stands at WX
+  const HOLD = 1.3, CARRY = 0.8;              // seconds a candy is in hand; the line moves it on as if it had been CARRY seconds
+  const CLOCK = [5.9, 2.85, 0.6];
+  const RECIPE = { a: "SUGAR", b: "COCOA", c: "NUTS" };
 
   const SCENES = [
-    { id: "lookup", label: "Look it up",
-      story: "Sometimes a candy needs something it does not carry itself. Here it is a name. The worker holds up each candy, finds its flavor on the chart and pins the name on. The chart just hangs on the wall and never changes. Engineers call this a join with a table." },
-    { id: "keep", label: "Keep everything", two: true,
-      story: "Now both sides move. Candies come on one line and cups on the other, and a candy and a cup of the same flavor make a pair. A partner may still be on its way, so the worker keeps everything on the racks and writes a card for every pair. But the lines never end, so the racks fill up, and then the work has to stop. Engineers call this a join of two streams, and the racks its state." },
-    { id: "fresh", label: "Only fresh ones", two: true, fresh: true,
-      story: "The cure is a rule about time. A candy and a cup only make a pair if they arrived within five seconds of each other. So anything older than five seconds can never find a partner again, and it is cleared away. The racks stay small and the work can go on forever." },
-    { id: "newest", label: "Keep the newest", two: true, latest: true,
-      story: "Often only the newest counts. The rack holds one cup of each flavor. A new cup takes the place of the old one, and no card is written for it. Each candy gets one card, with the newest cup of its flavor, and moves on. The candy itself is not kept." },
+    { id: "sheet", label: "The recipe sheet",
+      story: "A join adds something from another place. Here that place is the recipe sheet, with one row for each flavor. When a candy arrives, the worker finds the row of its flavor, takes a sticky note with what the row says, and sticks it on the candy. The candy leaves with its own tag and the note. The sheet never changes and no candy is kept, so there is nothing more to remember than the sheet. Engineers call this a join of a stream with a table." },
   ];
 
-  let k, F, P, U, PAL, rnd, sc, L, who, hands, ship, belts, items, cards, todo, counts, cur, nextBorn;
-  let racks, lanes, hopper, oldBin, banner, halt, lastLand, ahead, seq, deck, hot;
-
+  let k, F, P, U, PAL, rnd, L, line, ship, hands, who, items, todo, nextBorn, lastFlavor, counts, cur, hot, sheet, sticker;
+  const ease = (u) => { const v = Math.max(0, Math.min(1, u)); return v * v * (3 - 2 * v); };
   const later = (t, fn) => todo.push({ t, fn });
-  const due = (now) => { const d = todo.filter((j) => j.t <= now); todo = todo.filter((j) => j.t > now); d.sort((a, b) => a.t - b.t).forEach((j) => j.fn(now)); };
-  const fadeIn = (it, x) => { it.el.style.opacity = Math.max(0, Math.min(1, (x - 0.05) / 0.3)); };
-  const top = (it) => (it.kind === "cup" ? 10 : it.r * U);       // half the height of a thing, in sheet units
-  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
-  /* ================= scene 1: look it up ================= */
-  const chartRow = (i, px = 0) => P(CH.x + (14 + px) / U, 0, CH.z - (50 + i * 27) / U);
-  function drawChart() {
-    L.board.innerHTML = F.FLAVORS.map((fl, i) => {
-      const p = chartRow(i);
-      return `<g transform="matrix(${k.CS} ${k.SN} 0 1 ${k.f(p[0])} ${k.f(p[1])})"${hot === fl ? ' class="hot"' : ""}>${k.dot(8, -7, 7.5, PAL[fl], 1.1)}<text class="board-r" x="25" y="0">${F.NAMES[fl]}</text></g>`;
+  /* the sheet stands on two legs at the worker's side and faces the reader, like the worker does */
+  function drawSheet() {
+    const [fx, fy] = who.foot, x0 = fx + 24, x1 = fx + 118, y0 = fy - 108, y1 = fy - 28;
+    sheet = { rows: F.FLAVORS.map((fl, i) => [x0 + 15, fy - 80 + i * 20]) };
+    k.node(L.dolls, `<ellipse cx="${k.f((x0 + x1) / 2)}" cy="${k.f(fy + 1)}" rx="46" ry="6" fill="#5c5247" opacity=".13"/>`
+      + k.edges([[[x0 + 12, y1], [x0 + 8, fy + 1]], [[x1 - 12, y1], [x1 - 8, fy + 1]]], { w: 2.2, over: 0 })
+      + k.shape(`M${x0} ${y0}L${x1} ${y0}L${x1} ${y1}L${x0} ${y1}Z`, "#fdfaf1", 1.5)
+      + `<text class="board-t" x="${x0 + 10}" y="${y0 + 17}" style="font-size:15px">RECIPE</text>`);
+    sheet.el = k.node(L.dolls, "");
+    rows();
+  }
+  function rows() {
+    sheet.el.innerHTML = F.FLAVORS.map((fl, i) => {
+      const [x, y] = sheet.rows[i];
+      return `<g${hot === fl ? ' class="hot"' : ""}>${k.dot(x, y, 6.5, PAL[fl], 1.1)}<text class="sheet-r" x="${x + 13}" y="${y + 5.5}">${RECIPE[fl]}</text></g>`;
     }).join("");
   }
-  function initLookup() {
-    F.room({ clock: CLOCK, door: 11.2 });
-    k.still(F.panel(CH.x, CH.x + CH.w, CH.z - CH.h, CH.z, "#fdfaf1", 1.7) + `<text class="board-t" transform="${F.onBack(CH.x + 14 / U, CH.z - 22 / U)}">FLAVORS</text>`);
-    L = { clock: k.layer(), board: k.layer(), dolls: k.layer(), belt: k.layer(), under: k.layer(), candy: k.layer(), air: k.layer(), arms: k.layer(), over: k.layer() };
-    belts = [F.belt(L.belt, 0, X1, BY)];
-    who = F.worker(L, { x: SX, y: WY, look: 2, coat: PAL.yellow });
-    ship = F.bin(L, X1 + 0.4, BY - 0.7, 1.5, 1.4, 0.75, PAL.wood);
-    drawChart();
-    k.labelLayer();
-    k.setLabels([
-      { title: "KITCHEN", note: "candies come out one by one", x: 56, y: 150, side: "start", to: P(0, BY + 0.3, 1.7) },
-      { title: "CHART", note: "always the same, it never moves", x: 1344, y: 150, side: "end", to: P(CH.x + CH.w - 0.3, 0, CH.z - 0.3) },
-      { title: "WORKER", note: "looks up every candy on the chart", x: 56, y: 520, side: "start", to: [who.foot[0] + 15 * F.MAN, who.foot[1] - 58 * F.MAN] },
-      { title: "SHIPPING", note: "every candy leaves with its name", x: 1344, y: 650, side: "end", to: P(X1 + 1.9, BY + 0.2, 0.55) },
-    ]);
-    // the line is already running when the story opens
-    nextBorn = -X1 / F.V + 0.5;
-    while (nextBorn <= 0) { const it = candy(nextBorn); if (-F.V * it.born >= SX) { it.done = true; it.flag = F.NAMES[it.flavor]; F.redraw(it); } nextBorn += 1.3 + rnd() * 1.6; }
-  }
-  function candy(born) {
-    const it = F.thing(L.candy, { flavor: F.FLAVORS[Math.floor(rnd() * 3)] }); it.born = born; it.state = "line";
+
+  function newCandy(born) {
+    const light = rnd() < 0.36, grams = light ? 22 + Math.floor(rnd() * 9) : 31 + Math.floor(rnd() * 9);
+    let fl = F.FLAVORS[Math.floor(rnd() * 3)];
+    if (fl === lastFlavor && rnd() < 0.6) fl = F.FLAVORS[(F.FLAVORS.indexOf(fl) + 1) % 3];
+    lastFlavor = fl;
+    const it = F.thing(L.candy, { flavor: fl, small: light, flag: grams + " g" }); it.born = born; it.state = "line";
     items.push(it); return it;
   }
-  /* the worker has a candy in hand: the row on the chart lights up and its name comes over */
-  function lookUp(it, now) {
-    const i = F.FLAVORS.indexOf(it.flavor), name = F.NAMES[it.flavor];
-    later(now + 0.12, () => { hot = it.flavor; drawChart(); });
-    later(now + 0.18, (t) => {
-      const tag = k.node(L.air, F.flagArt(name, -2 * it.r * U - 1));
-      F.fly(tag, chartRow(i, 60, 0), P(SX, BY, F.TOP + LIFT), t, HOLD / 2 - 0.18, { arc: 12, scale: [0.7, 1], done: () => { tag.remove(); it.flag = name; F.redraw(it); counts.named++; } });
+  const gap = () => 1.75 + rnd() * 1.9;            // uneven, and never closer than the worker can handle
+
+  /* the worker has the candy at the chest: find the row, take a note from it, stick it on */
+  function lookUp(it, t0) {
+    const i = F.FLAVORS.indexOf(it.flavor), row = sheet.rows[i];
+    cur.reach = null;
+    later(t0 + 0.3, () => { hot = it.flavor; rows(); cur.reach = [row[0] + 4, row[1]]; });          // the free hand goes to the row
+    later(t0 + 0.55, (t) => {
+      sticker = { el: k.node(L.air, F.noteArt(RECIPE[it.flavor], 9)), pos: [row[0] + 30, row[1]] };
+      const c = who.chest(it.r * U), to = [c[0], c[1] + 32];                                           // under the candy, where its tag hangs
+      F.fly(sticker.el, sticker.pos, to, t, 0.3, { arc: -6, it: sticker, done: () => { sticker.el.remove(); sticker = null; cur.reach = null; it.note = RECIPE[it.flavor]; F.redraw(it); counts.noted++; } });
     });
-    later(now + 0.8, () => { if (hot === it.flavor) { hot = null; drawChart(); } });
+    later(t0 + 1.0, () => { if (hot === it.flavor) { hot = null; rows(); } });
   }
-  function tickLookup(dt, now) {
-    while (nextBorn <= now) { candy(nextBorn); nextBorn += 1.3 + rnd() * 1.6; }
-    items.forEach((it) => {
-      const x = F.V * (now - it.born);
-      if (!it.done && x >= SX - (F.V * HOLD) / 2) { it.done = true; it.act = now; cur.it = it; lookUp(it, now); }
-      let z = F.TOP, o = {};
-      if (it.act != null) {
-        const u = (now - it.act) / HOLD;
-        if (u >= 1) { it.act = null; if (cur.it === it) cur.it = null; } else { z += LIFT * Math.sin(Math.PI * u); o = { air: true, busy: u > 0.2 && u < 0.85 }; }
+
+  function place(it, now) {
+    if (it.state !== "line") return;
+    let x = F.V * (now - it.born), p, o = {};
+    if (!it.done && x >= WX - 0.1) { it.done = true; it.t0 = now; cur.it = it; lookUp(it, now); }
+    if (it.t0 != null) {
+      const u = now - it.t0, from = P(WX - 0.1, BY, F.TOP), to = P(WX - 0.1 + F.V * CARRY, BY, F.TOP), c = who.chest(it.r * U);
+      if (u >= HOLD) { it.born = now - (WX - 0.1 + F.V * CARRY) / F.V; it.t0 = null; cur.it = null; x = F.V * (now - it.born); it.clear = x + 0.75; }   // back on the line, a little later than it would have been
+      else {
+        const up = ease(u / 0.25), down = ease((u - (HOLD - 0.25)) / 0.25), q = u < HOLD / 2 ? [from[0] + (c[0] - from[0]) * up, from[1] + (c[1] - from[1]) * up] : [c[0] + (to[0] - c[0]) * down, c[1] + (to[1] - c[1]) * down];
+        p = [q[0], q[1] - 5 * Math.sin(Math.PI * (u < HOLD / 2 ? up : down))];
+        o = { air: u > 0.05 && u < HOLD - 0.05, low: u > 0.05, busy: u > 0.55 && u < 0.95 };
       }
-      if (x >= X1) { it.state = "out"; F.drop(it, P(X1, BY, F.TOP), ship, now); return; }
-      F.put(it, P(x, BY, z), o); fadeIn(it, x);
-    });
-    items = items.filter((it) => it.state === "line");
-  }
-
-  /* ================= scenes 2 to 4: two lines ================= */
-  const laneY = (side) => (side === "cup" ? YB : YF);
-  const place = (side, i) => P(S0 + DS * i, laneY(side), F.TOP);
-  const other = (side) => (side === "cup" ? "candy" : "cup");
-
-  function initTwo() {
-    F.room({ hatches: [{ y: YB, sign: "CUPS" }, { y: YF, sign: "CANDY" }], clock: CLOCK });
-    L = { clock: k.layer(), board: k.layer(), beltBack: k.layer(), cup: k.layer(), dolls: k.layer(), beltMid: k.layer(), under: k.layer(),
-      beltFront: k.layer(), candy: k.layer(), air: k.layer(), arms: k.layer(), over: k.layer() };
-    belts = [F.belt(L.beltBack, 0, XE, YB), F.belt(L.beltFront, 0, XE, YF), F.belt(L.beltMid, OUT0, OUT1, YM)];
-    who = F.worker(L, { x: WX, y: WYM, look: 2, coat: PAL.yellow });
-    ship = F.bin(L, OUT1 + 0.4, YM - 0.7, 1.4, 1.4, 0.75, PAL.wood);
-    racks = { cup: Array(sc.latest ? 3 : SIZE).fill(null), candy: Array(SIZE).fill(null) };
-    const rackEnd = S0 + DS * (racks.cup.length - 1) + 0.3;
-    F.rack(L.beltBack, S0 - 0.3, rackEnd, YB);
-    if (sc.latest) {
-      oldBin = F.bin(L, 7.3, YB - 0.55, 1.1, 1.1, 0.7, PAL.red);
-      hopper = F.bin(L, 4.2, YF - 0.6, 1.2, 1.2, 0.75, PAL.wood);
-      F.FLAVORS.forEach((fl, i) => { const it = F.thing(L.cup, { kind: "cup", flavor: fl }); it.side = "cup"; it.state = "rack"; F.put(it, place("cup", i)); racks.cup[i] = it; });   // one cup of each flavor is there already
-    } else {
-      F.rack(L.beltFront, S0 - 0.3, rackEnd, YF);
-      banner = k.node(L.board, F.panel(5.6, 10.4, 1.25, 2.05, "#fbe1da", 1.6) + `<text class="banner" transform="${F.onBack(5.85, 1.47)}">NO ROOM LEFT</text>`, 'style="display:none"');
     }
-    const cupEnd = P(rackEnd, YB - 0.5, F.TOP);
-    const list = [
-      { title: "WORKER", note: "takes every candy and cup in hand", x: 56, y: 560, side: "start", to: [who.foot[0] - 4, who.foot[1] - 30 * F.MAN] },
-      { title: "PAIRS", note: "one card for every pair", x: 1344, y: 660, side: "end", to: P(OUT1 + 1.8, YM + 0.2, 0.5) },
-    ];
-    if (sc.latest) list.push(
-      { title: "NEWEST CUPS", note: "one of each flavor", x: 1344, y: 440, side: "end", to: cupEnd },
-      { title: "OLD CUPS", note: "replaced, so thrown out", x: 1344, y: 545, side: "end", to: P(8.4, YB, 0.35) },
-      { title: "CANDY", note: "gets its card and is not kept", x: 56, y: 690, side: "start", to: P(4.2, YF + 0.2, 0.4) });
-    else list.push(
-      { title: "CUP RACK", note: sc.fresh ? "each tag shows the age in seconds" : "every cup is kept", x: 1344, y: 470, side: "end", to: cupEnd },
-      { title: "CANDY RACK", note: sc.fresh ? "older than 5 seconds: cleared away" : "every candy is kept", x: 56, y: 690, side: "start", to: P(S0, YF + 0.5, 0.45) });
-    k.labelLayer(); k.setLabels(list);
-    deck = { candy: shuffle(["a", "a", "b", "b", "c", "c"]), cup: shuffle(["a", "a", "b", "b", "c", "c"]) };
-    seq = 0; ahead = null; lastLand = -9; halt = null;
+    if (it.t0 == null && it.clear) { if (x < it.clear) o.low = true; else it.clear = null; }
+    if (x >= X1) { it.state = "out"; F.drop(it, P(X1, BY, F.TOP), ship, now); return; }
+    F.put(it, p || P(x, BY, F.TOP), o);
+    it.el.style.opacity = Math.max(0, Math.min(1, (x - 0.05) / 0.3));
   }
 
-  /* what comes next, and when it reaches the end of its line. The two lines take turns, so the worker has one thing in hand at a time. */
-  function nextUp() {
-    const n = seq++;
-    if (sc.latest) {
-      const side = n % 3 === 2 ? "cup" : "candy";
-      return { t: 0.9 + 1.4 * n, side, flavor: side === "cup" ? F.FLAVORS[Math.floor(n / 3) % 3] : F.FLAVORS[Math.floor(rnd() * 3)] };
-    }
-    const side = n % 2 ? "cup" : "candy";
-    if (!sc.fresh) return { t: 0.9 + 1.5 * n, side, flavor: deck[side][Math.floor(n / 2) % SIZE] };
-    const there = racks[other(side)].filter((p) => p && !p.grey);            // likely partners, so that pairs do happen
-    return { t: 0.9 + 1.3 * n, side, flavor: there.length && rnd() < 0.62 ? there[Math.floor(rnd() * there.length)].flavor : F.FLAVORS[Math.floor(rnd() * 3)] };
-  }
-  function spawn(now) {
-    for (;;) {
-      if (!ahead) ahead = nextUp();
-      if (ahead.t - XE / F.V > now) return;
-      const it = F.thing(L[ahead.side], { kind: ahead.side, flavor: ahead.flavor });
-      it.side = ahead.side; it.born = ahead.t - XE / F.V; it.state = "line"; items.push(it); ahead = null;
-    }
-  }
-
-  /* a ring around a partner that was found */
-  function ring(p, now) {
-    const el = k.node(L.air, `<circle class="halo" r="22" cy="${k.f(-top(p))}"/>`, `transform="translate(${k.f(p.pos[0])} ${k.f(p.pos[1])})"`);
-    later(now + 0.75, () => el.remove());
-  }
-  /* a pair card leaves from the partner on the rack and lands on the card line; cards land one after another */
-  function pair(p, flavor, t) {
-    const start = Math.max(t, lastLand + 0.7 - 0.6); lastLand = start + 0.6;
-    const from = [p.pos[0], p.pos[1] - 2 * top(p)];
-    later(start, (now) => {
-      const c = F.card(L.air, { pair: flavor }); c.el.style.display = "none"; counts.pairs++;
-      F.fly(c.el, from, P(LAND, YM, F.TOP), now, 0.6, { arc: 40, scale: [0.5, 1], it: c, done: () => { c.t0 = now + 0.6; cards.push(c); } });
-    });
-  }
-  /* the worker has a thing in hand: find its partners */
-  function match(it, now) {
-    if (sc.latest && it.side === "cup") {            // a new cup only takes the place of the old one
-      const i = F.FLAVORS.indexOf(it.flavor), old = racks.cup[i];
-      if (old) { racks.cup[i] = null; L.air.appendChild(old.el); F.drop(old, old.pos, oldBin, now); counts.replaced++; }
-      return;
-    }
-    const found = sc.latest ? [racks.cup[F.FLAVORS.indexOf(it.flavor)]].filter(Boolean)
-      : racks[other(it.side)].filter((p) => p && p.state === "rack" && p.flavor === it.flavor && !p.grey);
-    found.forEach((p, j) => { ring(p, now); pair(p, it.flavor, now + 0.12 + j * 0.1); });
-  }
-  /* then put it where it belongs */
-  function store(it, now) {
-    it.el.classList.remove("busy");
-    if (sc.latest && it.side === "candy") { F.drop(it, who.held, hopper, now); return; }
-    const i = sc.latest ? F.FLAVORS.indexOf(it.flavor) : racks[it.side].indexOf(null);
-    racks[it.side][i] = it; it.t0 = now;
-    F.fly(it.el, who.held, place(it.side, i), now, 0.36, { arc: 16, it, done: () => {
-      it.el.classList.remove("air"); it.state = "rack";
-      racks[it.side].forEach((p) => { if (p && p.state === "rack") L[it.side].appendChild(p.el); });     // nearer places are drawn over farther ones
-    } });
-  }
-  function take(it, now) {
-    it.state = "hand"; cur.it = it; it.el.style.opacity = 1; it.el.classList.add("air"); L.air.appendChild(it.el);
-    F.fly(it.el, P(XE, laneY(it.side), F.TOP), who.held, now, 0.28, { arc: 8, it });
-    if (!sc.latest && !racks[it.side].includes(null)) { later(now + 0.32, (t) => { halt = t; banner.style.display = ""; }); return; }     // nowhere to put it
-    later(now + 0.3, () => it.el.classList.add("busy"));
-    later(now + 0.44, (t) => match(it, t));
-    later(now + 0.84, (t) => store(it, t));
-    later(now + 1.04, () => { if (cur.it === it) cur.it = null; });
-  }
-  /* things on the racks grow older; past five seconds they turn grey and are cleared away */
-  function age(now) {
-    ["cup", "candy"].forEach((side) => racks[side].forEach((p, i) => {
-      if (!p || p.state !== "rack") return;
-      const a = now - p.t0, text = Math.min(FRESH, Math.floor(a)) + "s", grey = a >= FRESH;
-      if (text !== p.flag || grey !== !!p.grey) { p.flag = text; p.grey = p.warn = grey; F.redraw(p); }
-      if (a >= FRESH + 0.5) p.el.style.opacity = Math.max(0, (FRESH + 0.9 - a) / 0.4);
-      if (a >= FRESH + 0.9) { p.el.remove(); racks[side][i] = null; counts.cleared++; }
-    }));
-  }
-  function tickTwo(dt, now) {
-    spawn(now);
-    items.forEach((it) => {
-      const x = F.V * (now - it.born);
-      if (x >= XE) { take(it, now); return; }
-      F.put(it, P(x, laneY(it.side), F.TOP)); fadeIn(it, x);
-    });
-    items = items.filter((it) => it.state === "line");
-    if (sc.fresh) age(now);
-    cards = cards.filter((c) => {
-      const x = LAND + F.V * (now - c.t0);
-      if (x >= OUT1) { F.drop(c, P(OUT1, YM, F.TOP), ship, now); return false; }
-      F.put(c, P(x, YM, F.TOP)); return true;
-    });
-  }
-
-  function init(kit, scene) {
-    k = kit; F = Factory(kit); P = kit.P; U = kit.U; PAL = kit.PAL; sc = scene; rnd = kit.rng(31); F.reset();
-    items = []; cards = []; todo = []; cur = { it: null }; hot = null; halt = null; banner = null;
-    counts = { named: 0, pairs: 0, cleared: 0, replaced: 0 };
-    if (sc.two) initTwo(); else initLookup();
+  function init(kit) {
+    k = kit; F = Factory(kit); P = kit.P; U = kit.U; PAL = kit.PAL; rnd = kit.rng(31); F.reset();
+    items = []; todo = []; lastFlavor = null; counts = { noted: 0 }; cur = { it: null, reach: null }; hot = null; sticker = null;
+    F.room({ window: [1.2, 3.3], clock: CLOCK, door: 11.2 });
+    L = { clock: k.layer(), dolls: k.layer(), belt: k.layer(), under: k.layer(), candy: k.layer(), air: k.layer(), arms: k.layer(), over: k.layer() };
     hands = F.clockHands(L.clock, CLOCK);
+    line = F.belt(L.belt, 0, X1, BY);
+    who = F.worker(L, { x: WX, y: BY - F.GAP, look: 2, coat: PAL.yellow });
+    drawSheet();
+    ship = F.bin(L, X1 + 0.4, BY - 0.7, 1.5, 1.4, 0.75, PAL.wood);
+    k.labelLayer();
+    k.setLabels([
+      { title: "KITCHEN", note: "candies come out one by one", x: 56, y: 150, side: "start", to: P(0, BY + 0.3, 1.6) },
+      { title: "WORKER", note: "finds the row for every candy", x: 56, y: 486, side: "start", to: [who.foot[0] - 14 * F.MAN, who.foot[1] - 62 * F.MAN] },
+      { title: "RECIPE SHEET", note: "one row for each flavor, never changes", x: 1344, y: 150, side: "end", to: [who.foot[0] + 112, who.foot[1] - 100] },
+      { title: "SHIPPING", note: "each candy leaves with its note", x: 1344, y: 650, side: "end", to: P(X1 + 1.9, BY + 0.2, 0.55) },
+    ]);
     k.focus([246, 24, 908, 760]);
+    // the line is already running when the story opens
+    nextBorn = -X1 / F.V + 0.4;
+    while (nextBorn <= 0) { const it = newCandy(nextBorn); if (-F.V * it.born >= WX - 0.1) { it.done = true; it.note = RECIPE[it.flavor]; F.redraw(it); } nextBorn += gap(); }
     tick(0, 0);
   }
 
   function tick(dt, now) {
-    if (halt != null) {                              // the racks are full: everything stands still, then the story starts again
-      if (now - halt > 3.6) { k.restart(); return; }
-      who.pose(now, dt, cur.it && cur.it.pos ? F.grip([cur.it.pos[0], cur.it.pos[1] - top(cur.it)], 9) : [null, null]); hands(now);
-      return;
-    }
-    if (sc.two) tickTwo(dt, now); else tickLookup(dt, now);
-    due(now);
+    while (nextBorn <= now) { newCandy(nextBorn); nextBorn += gap(); }
+    items.forEach((it) => place(it, now));
+    items = items.filter((it) => it.state === "line");
+    const due = todo.filter((j) => j.t <= now); todo = todo.filter((j) => j.t > now); due.sort((a, b) => a.t - b.t).forEach((j) => j.fn(now));
     F.run(now);
-    who.pose(now, dt, cur.it && cur.it.pos ? F.grip([cur.it.pos[0], cur.it.pos[1] - top(cur.it)], 9) : [null, null]);
-    belts.forEach((b) => b.update(now)); hands(now);
+    // hands: both on the candy, except that the hand on the sheet's side goes to the row and brings the note over
+    let h = [null, null];
+    const it = cur.it || items.find((c) => c.state === "line" && !c.done && F.V * (now - c.born) > WX - 0.4);
+    if (it && it.pos) h = F.grip([it.pos[0], it.pos[1] - it.r * U], it.r * U * 0.85);
+    if (sticker) h[1] = [sticker.pos[0] - 4, sticker.pos[1] - 8]; else if (cur.reach) h[1] = cur.reach;
+    who.pose(now, dt, h);
+    line.update(now); hands(now);
   }
 
-  function status() {
-    const n = (v, one, many) => `${v} ${v === 1 ? one : many}`;
-    if (!sc.two) return `${n(counts.named, "candy", "candies")} named`;
-    const pairs = n(counts.pairs, "pair", "pairs");
-    if (sc.latest) return `${pairs} · ${n(counts.replaced, "cup", "cups")} replaced`;
-    if (sc.fresh) return `${pairs} · ${counts.cleared} cleared away`;
-    const kept = racks.cup.filter(Boolean).length + racks.candy.filter(Boolean).length;
-    return halt != null ? `${pairs} · the racks are full` : `${pairs} · ${kept} of ${2 * SIZE} places taken`;
-  }
+  const status = () => `${counts.noted} ${counts.noted === 1 ? "candy" : "candies"} with a note`;
 
   Story.start({ scenes: SCENES, init, tick, status });
 })();

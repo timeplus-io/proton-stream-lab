@@ -2,24 +2,24 @@
    Counting needs memory: the board on the wall is the worker's state. The cards that leave are the results.
    Scenes: a card on a timer, a card for every change, a line per time slot, a late candy, and waiting a little. */
 (() => {
-  const BY = 3.9, WY = 2.95;                  // the lines run along y = BY; the worker stands at y = WY
-  const CX = 3.8, IN1 = 4.45, WX = 4.6;       // a candy is picked up at CX; the candy line ends at IN1; the worker stands at WX
-  const OUT0 = 7.9, OUT1 = 10.6;              // the card line
+  const BY = 3.9;                             // the lines run along y = BY
+  const WX = 3.9, CX = WX - 0.1, IN1 = WX + 0.25;   // the worker stands at WX; a candy is picked up at CX; the candy line ends at IN1
+  const OUT0 = 7.6, OUT1 = 10.6;              // the card line
   const SLOT = 5, PERIOD = 2;                 // seconds in a time slot; seconds between cards on a timer
   const CLOCK = [2.1, 2.85, 0.6];
   const BD = { x: 4.3, w: 5.2, z: 3.3, h: 1.75 };   // the board on the back wall
 
   const SCENES = [
     { id: "tally", label: "Keep a tally", emit: "timer",
-      story: "Counting needs memory. The worker keeps a tally of each flavor on the board. The line never ends, so the tally is never final. Instead, every two seconds the worker sends out a card with the totals so far. Engineers call the board state, and the counting an aggregation." },
+      story: "Counting needs memory. The worker keeps a tally of each flavor on the board. The line never ends, so the tally is never final. Instead, every two seconds a card goes out for each flavor with its total so far, changed or not. Engineers call the board state, and the counting an aggregation." },
     { id: "change", label: "Every change", emit: "change",
       story: "The same tally, a different habit. The worker does not wait for the clock. Each candy changes one number, and a card with that new number goes out at once. One candy in, one card out." },
     { id: "slots", label: "Time slots", win: true, delay: 0,
-      story: "A time slot gives the count an end. Every candy carries a stamp with the second it was made, and the board keeps one line for each five-second slot. When the first candy of the next slot shows up, the old slot is complete: its card goes out once and its line is wiped. Engineers call the slot a window." },
+      story: "A time slot gives the count an end. Every candy carries a stamp with the second it was made, and the board keeps one line for each five-second slot. When the first candy of the next slot shows up, the old slot is complete: its counts go out once, one card for each flavor, and its line is wiped. Engineers call the slot a window." },
     { id: "late", label: "A late candy", win: true, delay: 0, disorder: true,
-      story: "Some candies get stuck on the way and arrive late. Their stamp is red. If the slot on the stamp is already closed, the candy cannot be counted any more, so it goes in the bin." },
+      story: "Some candies get stuck on the way and arrive late. Their stamp is red. A late candy still counts as long as its slot is open. If the slot on the stamp is already closed, its cards have gone out, so the candy goes in the bin." },
     { id: "wait", label: "Wait a little", win: true, delay: 2, disorder: true,
-      story: "The same candies, with more patience. The worker keeps each slot open two seconds longer before sending its card, so most late candies still get counted. The price is that every card goes out two seconds later." },
+      story: "The same candies, with more patience. The worker keeps each slot open two seconds longer before sending its card, so fewer late candies end up in the bin. The price is that every card goes out two seconds later." },
   ];
 
   let k, F, P, U, PAL, rnd, sc, L, lineIn, lineOut, hopper, ship, lateBin, who, hands;
@@ -44,17 +44,21 @@
   }
   /* a card leaves the board and lands on the card line */
   function send(r, parts, now) {
-    const i = Math.max(0, visible().indexOf(r)), c = F.card(L.cards, { head: sc.win ? r.label : null, parts });
-    c.el.style.display = "none";
-    F.fly(c.el, rowAt(i, 130, 6), P(OUT0, BY, F.TOP), now, 0.6, { arc: 34, scale: [0.55, 1], it: c, done: () => { c.t0 = now + 0.6; cards.push(c); } });
-    cur.card = c; cur.cardUntil = now + 0.4; counts.cards++;
+    const i = Math.max(0, visible().indexOf(r)), from = rowAt(i, 118 + F.FLAVORS.indexOf(parts[0].flavor) * 50 + 12, 6);
+    const c = F.card(L.cards, { head: sc.win ? sec(r.ws) : null, parts });
+    L.cards.insertBefore(c.el, L.cards.firstChild);                 // a later card rides behind the one before it
+    c.el.style.display = "none"; counts.cards++;
+    F.fly(c.el, from, P(OUT0, BY, F.TOP), now, 0.6, { arc: 34, scale: [0.55, 1], it: c, done: () => { c.t0 = now + 0.6; cards.push(c); } });
   }
-  const filled = (r, of = "shown") => F.FLAVORS.filter((fl) => r[of][fl] > 0).map((fl) => ({ flavor: fl, n: r[of][fl] }));
+  /* one card for each flavor that has a count, one after another */
+  function sendAll(r, of, now) {
+    F.FLAVORS.filter((fl) => r[of][fl] > 0).forEach((fl, j) => later(now + j * 0.7, (t) => send(r, [{ flavor: fl, n: r[of][fl] }], t)));
+  }
 
   /* +1 travels from the candy to its number, and the number changes when it lands */
   function plusOne(r, fl, now) {
-    const i = Math.max(0, visible().indexOf(r)), el = k.node(L.cards, `<text class="plus" text-anchor="middle">+1</text>`);
-    F.fly(el, [who.held[0], who.held[1] - 30], rowAt(i, 118 + F.FLAVORS.indexOf(fl) * 50 + 18, 6), now, 0.32, { arc: 10, done: () => el.remove() });
+    const i = Math.max(0, visible().indexOf(r)), el = k.node(L.over, `<text class="plus" text-anchor="middle">+1</text>`), c = who.chest(0);
+    F.fly(el, [c[0] + 26, c[1] - 62], rowAt(i, 118 + F.FLAVORS.indexOf(fl) * 50 + 18, 6), now, 0.32, { arc: 10, done: () => el.remove() });
     later(now + 0.32, (t) => {
       r.shown[fl]++; r.hot[fl] = t + 0.6; boardUntil = t + 0.7; drawBoard(t);
       if (sc.emit === "change") send(r, [{ flavor: fl, n: r.shown[fl] }], t);
@@ -70,16 +74,17 @@
     maxEt = Math.max(maxEt, it.et); wm = Math.max(wm, Math.floor((maxEt - sc.delay) / SLOT) * SLOT);
     [...rows.values()].filter((q) => !q.closing && q.ws + SLOT <= wm).forEach((q) => {      // these slots are complete
       q.closing = true; counts.closed++;
-      later(now + 0.45, (t) => { drawBoard(t); send(q, filled(q, "n"), t); });
-      later(now + 1.05, (t) => { rows.delete(q.ws); drawBoard(t); });
+      later(now + 0.45, (t) => { drawBoard(t); sendAll(q, "n", t); });
+      later(now + 1.9, (t) => { rows.delete(q.ws); drawBoard(t); });
     });
   }
   function pick(it, now) {
-    it.state = "hand"; cur.it = it; it.el.classList.add("air");
-    F.fly(it.el, P(CX, BY, F.TOP), who.held, now, 0.28, { arc: 6, it });
+    const c = who.chest(it.r * U);
+    it.state = "hand"; cur.it = it; it.el.classList.add("air", "low");
+    F.fly(it.el, P(CX, BY, F.TOP), c, now, 0.28, { arc: 5, it });
     later(now + 0.32, () => it.el.classList.add("busy"));
     later(now + 0.46, (t) => decide(it, t));
-    later(now + 0.66, (t) => { it.el.classList.remove("busy"); F.drop(it, who.held, it.late ? lateBin : hopper, t); });
+    later(now + 0.66, (t) => { it.el.classList.remove("busy"); F.drop(it, c, it.late ? lateBin : hopper, t); });
     later(now + 0.86, () => { if (cur.it === it) cur.it = null; });
   }
 
@@ -94,7 +99,7 @@
     const stuck = sc.disorder && B >= 5, veryStuck = sc.disorder && B >= 10 && (B / SLOT) % 2 === 0;
     queue.push({ born: t1, et: t1 });
     queue.push(stuck ? { born: t2, et: B - 0.4 - rnd() * 0.9, warn: true } : { born: t2, et: t2 });
-    queue.push({ born: t3, et: t3 });
+    queue.push(sc.disorder ? { born: t3, et: t3 - 1.5, warn: true } : { born: t3, et: t3 });       // late, but its slot is still open
     if (t4 < B + SLOT - 0.2) queue.push(veryStuck ? { born: t4, et: B - 0.3 - rnd() * 0.6, warn: true } : { born: t4, et: t4 });
   }
   function nextCandy() {
@@ -124,7 +129,7 @@
       { title: "KITCHEN", note: sc.win ? "each candy gets a time stamp" : "candies come out one by one", x: 56, y: 150, side: "start", to: P(0, BY + 0.3, 1.7) },
       { title: "TALLY BOARD", note: sc.win ? "one line for each time slot" : "the worker's memory", x: 1344, y: 150, side: "end", to: b0 },
       { title: "COUNTER", note: "picks up every candy and counts it", x: 56, y: 520, side: "start", to: head },
-      { title: "CARDS", note: sc.win ? "one for each finished slot" : sc.emit === "timer" ? "the totals so far, every 2 seconds" : "one for every change", x: 1344, y: 650, side: "end", to: P(OUT1 - 0.6, BY + 0.45, F.TOP) },
+      { title: "CARDS", note: sc.win ? "one per flavor for each finished slot" : sc.emit === "timer" ? "every flavor's total, every 2 seconds" : "one for every change", x: 1344, y: 650, side: "end", to: P(OUT1 - 0.6, BY + 0.45, F.TOP) },
     ];
     if (lateBin) list.push({ title: "TOO LATE", note: "its slot is already closed", x: 56, y: 680, side: "start", to: P(lateBin.x - 0.45, lateBin.y + 0.5, 0.45) });
     k.setLabels(list);
@@ -134,7 +139,7 @@
     k = kit; F = Factory(kit); P = kit.P; U = kit.U; PAL = kit.PAL; sc = scene; rnd = kit.rng(19); F.reset();
     items = []; cards = []; todo = []; rows = new Map(); queue = []; ahead = null; lastFlavor = null; lateBin = null;
     counts = { counted: 0, cards: 0, closed: 0, late: 0, saved: 0 };
-    wm = -Infinity; maxEt = -Infinity; nextEmit = PERIOD; cur = { it: null, card: null, cardUntil: 0 }; boardUntil = 0;
+    wm = -Infinity; maxEt = -Infinity; nextEmit = PERIOD; cur = { it: null }; boardUntil = 0;
     slotAt = -SLOT; nextBorn = -CX / F.V + 0.3;
     F.room({ clock: CLOCK, door: 11.2 });
     k.still(F.panel(BD.x, BD.x + BD.w, BD.z - BD.h, BD.z, "#fdfaf1", 1.7) + `<text class="board-t" transform="${F.onBack(BD.x + 14 / U, BD.z - 25 / U)}">TALLY</text>`);
@@ -142,10 +147,10 @@
     L = { clock: k.layer(), board: k.layer(), dolls: k.layer(), belt: k.layer(), under: k.layer(), candy: k.layer(), cards: k.layer(), arms: k.layer(), over: k.layer() };
     hands = F.clockHands(L.clock, CLOCK);
     lineIn = F.belt(L.belt, 0, IN1, BY); lineOut = F.belt(L.belt, OUT0 - 0.7, OUT1, BY);
-    who = F.worker(L, { x: WX, y: WY, look: 1, coat: PAL.green });
-    hopper = F.bin(L, 5.0, BY - 0.6, 1.2, 1.2, 0.75, PAL.wood);
+    who = F.worker(L, { x: WX, y: BY - F.GAP, look: 1, coat: PAL.green });
+    hopper = F.bin(L, WX + 0.45, BY - 0.6, 1.2, 1.2, 0.7, PAL.wood);
     ship = F.bin(L, OUT1 + 0.4, BY - 0.7, 1.5, 1.4, 0.75, PAL.wood);
-    if (sc.disorder) lateBin = F.bin(L, 3.1, BY + 1.3, 1.2, 1.0, 0.7, PAL.red);
+    if (sc.disorder) lateBin = F.bin(L, WX - 1.5, BY + 1.3, 1.2, 1.0, 0.7, PAL.red);
     if (!sc.win) row(0, "so far");
     k.labelLayer(); labels();
     k.focus([246, 24, 908, 760]);
@@ -162,7 +167,7 @@
     });
     items = items.filter((it) => it.state === "line");
     const due = todo.filter((j) => j.t <= now); todo = todo.filter((j) => j.t > now); due.sort((a, b) => a.t - b.t).forEach((j) => j.fn(now));
-    if (sc.emit === "timer" && now >= nextEmit) { const r = rows.get(0), parts = filled(r); if (parts.length) send(r, parts, now); nextEmit += PERIOD; }
+    if (sc.emit === "timer" && now >= nextEmit) { sendAll(rows.get(0), "shown", now); nextEmit += PERIOD; }
     cards = cards.filter((c) => {
       const x = OUT0 + F.V * (now - c.t0);
       if (x >= OUT1) { F.drop(c, P(OUT1, BY, F.TOP), ship, now); return false; }
@@ -170,10 +175,8 @@
     });
     F.run(now);
     if (boardUntil && now > boardUntil) { boardUntil = 0; drawBoard(now); }
-    let h = [null, null];
-    if (cur.it && cur.it.pos) h = F.grip([cur.it.pos[0], cur.it.pos[1] - cur.it.r * U], 9);
-    else if (cur.card && now < cur.cardUntil && cur.card.pos) h = [null, [cur.card.pos[0], cur.card.pos[1] - 18]];
-    who.pose(now, dt, h);
+    const it = cur.it || items.find((c) => c.state === "line" && F.V * (now - c.born) > CX - 0.3);      // the next candy is reached for a moment before it is taken
+    who.pose(now, dt, it && it.pos ? F.grip([it.pos[0], it.pos[1] - it.r * U], it.r * U * 0.85) : [null, null]);
     lineIn.update(now); lineOut.update(now); hands(now);
   }
 
@@ -181,7 +184,7 @@
     const n = (v, one, many) => `${v} ${v === 1 ? one : many}`;
     if (!sc.win) return `${n(counts.counted, "candy", "candies")} counted · ${n(counts.cards, "card", "cards")} sent`;
     if (sc.id === "slots") return `${n(counts.closed, "slot", "slots")} finished`;
-    if (sc.id === "late") return `${n(counts.closed, "slot", "slots")} finished · ${counts.late} too late`;
+    if (sc.id === "late") return `${counts.saved} late but counted · ${counts.late} too late`;
     return `${counts.saved} late but counted · ${counts.late} too late`;
   }
 

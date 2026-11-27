@@ -4,7 +4,7 @@
 const Factory = (k) => {
   const { PAL, P, U, f, CS, SN } = k;
   const FX = 13, FY = 6.4, WH = 3.7;               // floor size and wall height
-  const TOP = 0.9, BW = 1.0, V = 1.3, SLAT = 0.6;  // a line: height of its top, its width, its speed
+  const TOP = 0.72, BW = 1.0, V = 1.3, SLAT = 0.6, LEG = TOP - 0.28;  // a line: height of its top (a worker's hip), its width, its speed
   const MAN = 1.15, R = 0.3, R_SMALL = 0.18;       // size of a worker, of a candy, of a small candy
   const FLAVORS = ["a", "b", "c"];
   const NAMES = { a: "ORANGE", b: "MINT", c: "GRAPE" };
@@ -29,7 +29,7 @@ const Factory = (k) => {
     h += k.edges(joints, { w: 0.7, op: 0.2, over: 0, amp: 0.5 });
     h += k.box(-0.3, -0.3, 0, 0.3, FY + 0.3, WH, PAL.wall) + k.box(0, -0.3, 0, FX, 0.3, WH, PAL.wall, { side: k.darker(PAL.wall, 0.09) });
     hatches.forEach(({ y, sign }) => {
-      const y0 = y - 0.72, y1 = y + 0.72, z0 = 0.5, z1 = 1.95, q = [L(y0, z0), L(y1, z0), L(y1, z1), L(y0, z1)];
+      const y0 = y - 0.72, y1 = y + 0.72, z0 = TOP - 0.4, z1 = TOP + 1.05, q = [L(y0, z0), L(y1, z0), L(y1, z1), L(y0, z1)];
       h += k.wash(q, PAL.dark);
       h += k.wash([P(0, y0, z0), P(0, y1, z0), P(-0.3, y1, z0), P(-0.3, y0, z0)], k.darker(PAL.wall, 0.3));     // the sill
       h += k.wash([P(0, y0, z0), P(0, y0, z1), P(-0.3, y0, z1), P(-0.3, y0, z0)], k.darker(PAL.wall, 0.45));    // the far jamb
@@ -70,9 +70,9 @@ const Factory = (k) => {
     const top = [P(x0, y0 + 0.08, TOP), P(x1, y0 + 0.08, TOP), P(x1, y1 - 0.08, TOP), P(x0, y1 - 0.08, TOP)];
     const legs = []; for (let x = x0 + (x0 === 0 ? 1.2 : 0.3); x < x1 - 1.2; x += 2.4) legs.push(x); legs.push(x1 - 0.3);
     let h = k.shadow([P(x0, y1), P(x1, y1), P(x1, y1 + 0.45), P(x0, y1 + 0.45)], 0.12);
-    h += legs.map((x) => k.box(x, y0 + 0.06, 0, 0.12, 0.12, 0.62, PAL.steel)).join("");
-    h += k.box(x0, y0, 0.62, x1 - x0, BW, TOP - 0.62, PAL.steel) + k.wash(top, PAL.belt) + k.loop(top, { w: 1 });
-    h += legs.map((x) => k.box(x, y1 - 0.18, 0, 0.12, 0.12, 0.62, PAL.steel)).join("");
+    h += legs.map((x) => k.box(x, y0 + 0.06, 0, 0.12, 0.12, LEG, PAL.steel)).join("");
+    h += k.box(x0, y0, LEG, x1 - x0, BW, TOP - LEG, PAL.steel) + k.wash(top, PAL.belt) + k.loop(top, { w: 1 });
+    h += legs.map((x) => k.box(x, y1 - 0.18, 0, 0.12, 0.12, LEG, PAL.steel)).join("");
     let lines = "";
     for (let x = x0 - SLAT; x < x1; x += SLAT) { const a = P(x, y0 + 0.12, TOP), b = P(x, y1 - 0.12, TOP); lines += `M${f(a[0])} ${f(a[1])}L${f(b[0])} ${f(b[1])}`; }
     h += `<defs><clipPath id="${id}"><path d="${path(top)}"/></clipPath></defs><g clip-path="url(#${id})"><g class="slats"><path d="${lines}" stroke="#c9c2b8" stroke-width="1.3" opacity=".75" fill="none"/></g></g>`;
@@ -84,9 +84,9 @@ const Factory = (k) => {
     const y0 = y - BW / 2;
     const legs = [x0 + 0.15, x1 - 0.27];
     return k.node(layer, k.shadow([P(x0, y0 + BW), P(x1, y0 + BW), P(x1, y0 + BW + 0.45), P(x0, y0 + BW + 0.45)], 0.12)
-      + legs.map((x) => k.box(x, y0 + 0.06, 0, 0.12, 0.12, 0.72, PAL.woodDark)).join("")
-      + k.box(x0, y0, 0.72, x1 - x0, BW, TOP - 0.72, PAL.wood)
-      + legs.map((x) => k.box(x, y0 + BW - 0.18, 0, 0.12, 0.12, 0.72, PAL.woodDark)).join(""));
+      + legs.map((x) => k.box(x, y0 + 0.06, 0, 0.12, 0.12, TOP - 0.18, PAL.woodDark)).join("")
+      + k.box(x0, y0, TOP - 0.18, x1 - x0, BW, 0.18, PAL.wood)
+      + legs.map((x) => k.box(x, y0 + BW - 0.18, 0, 0.12, 0.12, TOP - 0.18, PAL.woodDark)).join(""));
   }
   /* an open box on the floor; things dropped in go behind its front. Returns its middle. */
   function bin(L, x, y, w, d, h, col) {
@@ -96,45 +96,68 @@ const Factory = (k) => {
     return { x: x + w / 2, y: y + d / 2, h, mouth: P(x + w / 2, y + d / 2, h - 0.05), floor: P(x + w / 2, y + d / 2, 0.1) };
   }
 
-  /* ----- a worker: a paper doll whose hands go where the work is ----- */
+  /* ----- a worker: a paper doll that stands behind a line and works with its hands -----
+     Each arm has an elbow and a fixed length, so a hand only goes where an arm can reach.
+     The line is at hip height. A thing that passes at x = worker.x + GAP is right in front of the worker. */
+  const GAP = 0.75, ARM = 17 * MAN;                 // how far behind the middle of a line a worker stands; half the length of an arm
   function worker(L, o) {
-    const foot = P(o.x, o.y, 0), look = o.look ?? 0, coat = o.coat ?? PAL.blue;
+    const foot = P(o.x, o.y, 0), look = o.look ?? 0, coat = o.coat ?? PAL.blue, wide = 6.4 * MAN, phase = o.phase ?? 0;
     const body = k.node(L.dolls, `<g transform="scale(${MAN})">${k.doll({ look, coat })}</g>`);
-    const arms = k.SHOULDER.map(() => k.node(L.arms, `<g transform="scale(${MAN})">${k.arm({ look, coat })}</g>`));
-    const rest = [8, -8], cur = [{ a: 8, s: 1 }, { a: -8, s: 1 }];
-    let tilt = 0;
+    const arms = k.SHOULDER.map(() => k.node(L.arms, `<path class="ink" stroke-width="${f(wide + 2.6)}"/><path fill="none" stroke="${coat}" stroke-width="${f(wide)}" stroke-linecap="round" stroke-linejoin="round"/>${k.dot(0, 0, f(4.2 * MAN), PAL.skin[look], 1.2)}`));
+    const hand = [null, null];
+    let lean = 0, shift = 0;
     return {
-      foot, x: o.x, y: o.y, phase: o.phase ?? 0,
-      /* where the worker holds something up to look at it: beside the face, on the side of the line */
-      held: P(o.x - 0.3, o.y + 0.55, 1.1),
-      /* hands: a sheet point for each hand, or null to let that arm hang */
-      pose(now, dt, hands = [null, null]) {
-        const q = 1 - Math.exp(-dt * 16), aim = hands[0] || hands[1], [fx, fy] = foot;
-        tilt += ((aim ? Math.max(-5, Math.min(5, (aim[0] - fx) / 9)) : 0) - tilt) * q;
-        const lean = tilt + Math.sin(now * 1.7 + this.phase) * 0.8, bob = Math.sin(now * 2.2 + this.phase) * 0.6, a = (lean * Math.PI) / 180;
-        body.setAttribute("transform", `translate(${f(fx)} ${f(fy + bob)}) rotate(${lean.toFixed(2)})`);
+      foot, x: o.x, y: o.y,
+      /* where the worker holds a thing to work on it: in front of the chest. Returns where the foot of a thing h tall goes. */
+      chest: (h = R * U) => [foot[0], foot[1] - 34 * MAN + h],
+      /* hands: a sheet point for each hand, or null to let that arm hang. A point out of reach is reached for, a point far away is ignored. */
+      pose(now, dt, want = [null, null]) {
+        const q = 1 - Math.exp(-dt * 12), near = 1 - Math.exp(-dt * 32), [fx, fy] = foot;
+        const live = want.filter(Boolean), aim = live.length ? live.reduce((a, p) => a + p[0], 0) / live.length - fx : 0;
+        lean += (Math.max(-3, Math.min(3, aim / 10)) - lean) * q; shift += (Math.max(-4, Math.min(4, aim / 9)) - shift) * q;
+        const tilt = lean + Math.sin(now * 1.3 + phase) * 0.5, bob = Math.sin(now * 2 + phase) * 0.5, a = (tilt * Math.PI) / 180, bx = fx + shift, by = fy + bob;
+        body.setAttribute("transform", `translate(${f(bx)} ${f(by)}) rotate(${tilt.toFixed(2)})`);
         k.SHOULDER.forEach(([sx, sy], i) => {
-          const x = fx + MAN * (sx * Math.cos(a) - sy * Math.sin(a)), y = fy + bob + MAN * (sx * Math.sin(a) + sy * Math.cos(a));
-          let ta = rest[i], ts = 1;
-          if (hands[i]) { const dx = hands[i][0] - x, dy = hands[i][1] - y; ta = (Math.atan2(-dx, dy) * 180) / Math.PI; ts = Math.max(0.7, Math.min(1.9, Math.hypot(dx, dy) / (24 * MAN))); }
-          let da = ta - cur[i].a; da -= Math.round(da / 360) * 360;
-          cur[i].a += da * q; cur[i].s += (ts - cur[i].s) * q;
-          arms[i].setAttribute("transform", `translate(${f(x)} ${f(y)}) rotate(${cur[i].a.toFixed(1)}) scale(1 ${cur[i].s.toFixed(3)})`);
+          const side = i ? 1 : -1, S = [bx + MAN * (sx * Math.cos(a) - sy * Math.sin(a)), by + MAN * (sx * Math.sin(a) + sy * Math.cos(a))];
+          let T = want[i];
+          if (T && Math.hypot(T[0] - S[0], T[1] - S[1]) > ARM * 3.2) T = null;
+          if (!T) T = [S[0] + side * 6, S[1] + ARM * 1.62];                 // at rest the arm hangs, a little bent
+          const h = hand[i] || (hand[i] = [T[0], T[1]]), far = Math.hypot(T[0] - h[0], T[1] - h[1]), e = far < 10 ? near : q;
+          h[0] += (T[0] - h[0]) * e; h[1] += (T[1] - h[1]) * e;
+          let vx = h[0] - S[0], vy = h[1] - S[1], d = Math.hypot(vx, vy) || 1;
+          const reach = Math.min(d, ARM * 2 - 0.6), H = [S[0] + (vx / d) * reach, S[1] + (vy / d) * reach], off = Math.sqrt(Math.max(0, ARM * ARM - (reach * reach) / 4));
+          let px = -vy / d, py = vx / d; if (px * side * 0.5 + py * 0.85 < 0) { px = -px; py = -py; }     // the elbow points out and down
+          const E = [(S[0] + H[0]) / 2 + px * off, (S[1] + H[1]) / 2 + py * off], path = `M${f(S[0])} ${f(S[1])}L${f(E[0])} ${f(E[1])}L${f(H[0])} ${f(H[1])}`;
+          const [outer, inner, palm] = arms[i].children;
+          outer.setAttribute("d", path); inner.setAttribute("d", path); palm.setAttribute("cx", f(H[0])); palm.setAttribute("cy", f(H[1]));
         });
       },
     };
   }
-  /* both hands on a thing at sheet point p */
-  const grip = (p, r = 10) => (p ? [[p[0] - r, p[1] - r], [p[0] + r, p[1] - r]] : [null, null]);
+  /* both hands on a thing: p is the middle of the thing on the sheet, r half its width */
+  const grip = (p, r = 10) => (p ? [[p[0] - r, p[1]], [p[0] + r, p[1]]] : [null, null]);
 
   /* ----- things that travel ----- */
   const spark = (r) => `<path class="ink spark" d="M${f(-r * 1.25)} ${f(-r * 0.9)}L${f(-r * 1.75)} ${f(-r * 1.3)}M0 ${f(-r * 1.5)}L0 ${f(-r * 2.1)}M${f(r * 1.25)} ${f(-r * 0.9)}L${f(r * 1.75)} ${f(-r * 1.3)}" stroke-width="1.5"/>`;
   /* a small paper tag on a pin above a thing r tall-ish: a time stamp or a name */
-  function flagArt(text, top, warn) {
+  function flagArt(text, top, warn, pin = true) {
     const w = text.length * 8.6 + 12;
-    return `<path class="ink" d="M0 ${f(top)}L0 ${f(top - 9)}" stroke-width="1.1"/>`
+    return (pin ? `<path class="ink" d="M0 ${f(top)}L0 ${f(top - 9)}" stroke-width="1.1"/>` : "")
       + `<path d="M${f(-w / 2)} ${f(top - 27)}L${f(w / 2)} ${f(top - 27)}L${f(w / 2)} ${f(top - 9)}L${f(-w / 2)} ${f(top - 9)}Z" fill="${warn ? "#fbe1da" : PAL.white}" class="ink-f" stroke-width="1.1"${warn ? ' style="stroke:#c4604f"' : ""}/>`
       + `<text class="flag-t${warn ? " warn" : ""}" x="0" y="${f(top - 13.2)}" text-anchor="middle">${text}</text>`;
+  }
+  /* a yellow sticky note with its lower edge at y = bottom */
+  function noteArt(text, bottom = 0) {
+    const w = text.length * 8.6 + 12;
+    return `<g transform="translate(0 ${f(bottom)}) rotate(-3)"><path d="M${f(-w / 2)} -18L${f(w / 2)} -18L${f(w / 2)} 0L${f(-w / 2)} 0Z" fill="#f6dc7f" class="ink-f" stroke-width="1.1"/><text class="flag-t" x="0" y="-4.4" text-anchor="middle">${text}</text></g>`;
+  }
+  /* What a thing carries: its tag, and a note that was stuck on. On a line they stand above the thing.
+     In a worker's hands, and until the thing has moved clear of the worker, they hang below it, so that they do not cover the worker. */
+  function tags(it, top, bottom) {
+    if (!it.flag && !it.note) return "";
+    const up = (it.flag ? flagArt(it.flag, top, it.warn) : "") + (it.note ? noteArt(it.note, top - (it.flag ? 28 : 9)) : "");
+    const down = (it.flag ? flagArt(it.flag, bottom + 30, it.warn, false) : "") + (it.note ? noteArt(it.note, bottom + (it.flag ? 41 : 22)) : "");
+    return `<g class="tag-up">${up}</g><g class="tag-down">${down}</g>`;
   }
   function candyArt(it) {
     const r = it.r * U, col = it.grey ? "#cfc8bd" : PAL[it.flavor], pts = [];
@@ -149,7 +172,7 @@ const Factory = (k) => {
       h += k.shape(ball, col, 1.4);
       h += `<path d="M${f(-r * 0.55)} ${f(-r * 0.25)}Q${f(-r * 0.5)} ${f(-r * 0.62)} ${f(-r * 0.12)} ${f(-r * 0.66)}" stroke="#fffaf0" stroke-width="${f(r * 0.2)}" stroke-linecap="round" fill="none" opacity=".75"/>`;
     }
-    return `<g transform="translate(0 ${f(-r)})">${h}${spark(r)}</g>` + (it.flag ? flagArt(it.flag, -2 * r - 1, it.warn) : "");
+    return `<g transform="translate(0 ${f(-r)})">${h}${spark(r)}</g>` + tags(it, -2 * r - 1, 0);
   }
   /* a paper cup, about as big as a candy */
   function cupArt(it) {
@@ -158,22 +181,23 @@ const Factory = (k) => {
     h += k.shape(`M${-t} ${-hgt}L${-b} -2Q0 3 ${b} -2L${t} ${-hgt}Z`, col, 1.4);
     h += `<path class="ink" d="M-5.5 ${-hgt + 4}L-3.6 -1M5.5 ${-hgt + 4}L3.6 -1M0 ${-hgt + 5}L0 0" stroke-width=".9" opacity=".6"/>`;
     h += k.shape(`M${-t} ${-hgt}A${t} 5 0 1 0 ${t} ${-hgt}A${t} 5 0 1 0 ${-t} ${-hgt}Z`, k.darker(col, 0.35), 1.3);
-    return h + `<g transform="translate(0 -10)">${spark(13)}</g>` + (it.flag ? flagArt(it.flag, -hgt - 6, it.warn) : "");
+    return h + `<g transform="translate(0 -10)">${spark(13)}</g>` + tags(it, -hgt - 6, 2);
   }
   const artOf = (it) => (it.kind === "cup" ? cupArt(it) : candyArt(it));
-  /* make a candy or a cup. o: { kind, flavor, small, flag: text on a tag, warn: a red tag, grey: no longer of use } */
+  /* make a candy or a cup. o: { kind, flavor, small, flag: text on a tag, warn: a red tag, note: text on a sticky note, grey: no longer of use } */
   function thing(layer, o) {
     const it = { id: ++uid, kind: "candy", wrapped: false, ...o }; it.r = it.small ? R_SMALL : R;
     it.el = k.node(layer, artOf(it));
     return it;
   }
   const redraw = (it) => { it.el.innerHTML = artOf(it); };
-  /* put a thing at a sheet point. o: { s: scale, rot: degrees, air: off the line, busy: being worked on } */
+  /* put a thing at a sheet point. o: { s: scale, rot: degrees, air: off the line, busy: being worked on, low: its tags hang below it } */
   function put(it, p, o = {}) {
     it.pos = p;
     it.el.setAttribute("transform", `translate(${f(p[0])} ${f(p[1])})${o.rot ? ` rotate(${o.rot.toFixed(1)})` : ""}${o.s != null && o.s !== 1 ? ` scale(${o.s.toFixed(3)})` : ""}`);
     if (!!o.air !== !!it.air) { it.air = !!o.air; it.el.classList.toggle("air", it.air); }
     if (!!o.busy !== !!it.busy) { it.busy = !!o.busy; it.el.classList.toggle("busy", it.busy); }
+    if (!!o.low !== !!it.low) { it.low = !!o.low; it.el.classList.toggle("low", it.low); }
   }
   /* A report card: a piece of paper that stands up and faces the reader.
      o.head: a first line of small text; o.parts: [{ flavor, n }]; o.pair: a flavor, drawn as a candy in its cup */
@@ -210,6 +234,6 @@ const Factory = (k) => {
     fly(it.el, from, b.mouth, now, 0.42, { arc: 26, it, done: () => fly(it.el, b.mouth, b.floor, now + 0.42, 0.22, { it, done: () => { it.el.remove(); if (done) done(); } }) });
   }
 
-  return { FX, FY, WH, TOP, BW, V, MAN, R, R_SMALL, FLAVORS, NAMES, path, onLeft, onBack, panel, room, clockHands, belt, rack, bin, worker, grip,
-    thing, redraw, put, card, cardArt, flagArt, fly, run, reset, drop };
+  return { FX, FY, WH, TOP, BW, V, MAN, R, R_SMALL, FLAVORS, NAMES, GAP, path, onLeft, onBack, panel, room, clockHands, belt, rack, bin, worker, grip,
+    thing, redraw, put, card, cardArt, flagArt, noteArt, fly, run, reset, drop };
 };

@@ -22,11 +22,11 @@
   {
     "num": 3,
     "slug": "03-two-lines",
-    "name": "Two lines meet",
-    "title": "Two Lines Meet",
-    "h1": "Two lines meet",
-    "sub": "candies and cups · one pair at a time · racks that must not fill",
-    "description": "A candy factory shows how two streams are joined: a chart on the wall, two lines with racks that fill up, a rule about time, and keeping only the newest.",
+    "name": "The recipe sheet",
+    "title": "The Recipe Sheet",
+    "h1": "The recipe sheet",
+    "sub": "one line · one sheet · a note for every candy",
+    "description": "A candy factory shows what a join is: for every candy the worker finds the matching row on a recipe sheet and sticks it on.",
     "engineer": "03-join"
   }
 ]
