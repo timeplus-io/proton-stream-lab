@@ -72,6 +72,10 @@ h1 { font: 400 clamp(34px, 6vw, 60px)/1 var(--font-title); margin: 2px 0 6px; le
 .stage .board-n.hot, .stage .hot .board-r, .stage .hot .sheet-r { fill: #c4604f; }
 .stage .halo { fill: none; stroke: #c4604f; stroke-width: 2.4; }
 .stage .banner { font: 400 30px var(--font-hand); letter-spacing: .12em; fill: #b14a3a; }
+.stage .slate-t { font: 400 13px var(--font-hand); letter-spacing: .16em; fill: #fdfaf1; opacity: .7; }
+.stage .slate-h { font: 400 10.5px var(--font-hand); fill: #fdfaf1; opacity: .85; }
+.stage .slate-n { font: 400 17px var(--font-hand); fill: #fdfaf1; }
+.stage .slate-n.hot { fill: #f6dc7f; }
 .stage .plus { font: 400 22px var(--font-hand); fill: #c4604f; }
 .stage.compact .labels { display: none; }
 
@@ -468,11 +472,13 @@ const Factory = (k) => {
   const at = (p, now) => (typeof p === "function" ? p(now) : p);
   function worker(L, o) {
     const foot = P(o.x, o.y, 0), [fx, fy] = foot, look = o.look ?? 0, coat = o.coat ?? PAL.blue, wide = 6.4 * MAN, phase = o.phase ?? 0;
-    const body = k.node(L.dolls, `<g transform="scale(${MAN})">${k.doll({ look, coat })}</g>`, `transform="translate(${f(fx)} ${f(fy)})"`);
+    const body = k.node(o.layer ?? L.dolls, `<g transform="scale(${MAN})">${k.doll({ look, coat })}</g>`, `transform="translate(${f(fx)} ${f(fy)})"`);
     const top = body.querySelector(".top"), head = body.querySelector(".head"), eyes = body.querySelector(".eyes");
     const arms = k.SHOULDER.map(() => k.node(L.arms, `<path class="ink" stroke-width="${f(wide + 2.6)}"/><path fill="none" stroke="${coat}" stroke-width="${f(wide)}" stroke-linecap="round" stroke-linejoin="round"/>${k.dot(0, 0, f(4.2 * MAN), PAL.skin[look], 1.2)}`));
-    const rest = (i) => [fx + (i ? 17 : -17), fy - 19];            // hands at ease: low, at the worker's sides
-    const hands = [0, 1].map((i) => ({ from: rest(i), to: rest(i), t0: -9, dur: 0.1, pos: rest(i), bend: 1 }));
+    const side = { from: 0, to: 0, t0: -9, dur: 0.1, v: 0 };       // a step to the side along the line, in room units
+    let ox = 0, oy = 0;
+    const rest = (i) => [fx + ox + (i ? 17 : -17), fy + oy - 19];  // hands at ease: low, at the worker's sides
+    const hands = [0, 1].map((i) => ({ from: rest(i), to: null, t0: -9, dur: 0.1, pos: rest(i), shown: rest(i), bend: 1 }));
     let lean = 0, tilt = 0, eye = [0, 0], gaze = null;
     return {
       foot, x: o.x, y: o.y, rest,
@@ -480,19 +486,25 @@ const Factory = (k) => {
       hold: [fx, fy - 29],
       /* where hand i is now (0 is the hand on the left of the sheet) */
       at: (i) => hands[i].pos,
+      /* where hand i is drawn: the same place, unless that is further than the arm is long */
+      shown: (i) => hands[i].shown,
+      /* shift the weight s room units along the line, to reach something at the side; 0 is back in place. The legs are behind the line. */
+      step(s, now, dur = 0.3) { side.from = side.v; side.to = s; side.t0 = now; side.dur = Math.max(0.05, dur); },
       /* send hand i to a point, or to a point that moves (a function of time), to arrive dur seconds from now; no point means back to rest */
-      go(i, to, now, dur = 0.3) { const h = hands[i]; h.from = [h.pos[0], h.pos[1]]; h.to = to || rest(i); h.t0 = now; h.dur = Math.max(0.05, dur); },
+      go(i, to, now, dur = 0.3) { const h = hands[i]; h.from = [h.pos[0], h.pos[1]]; h.to = to || null; h.t0 = now; h.dur = Math.max(0.05, dur); },
       /* what the worker looks at: a point, a function of time, or nothing */
       look(p) { gaze = p; },
       pose(now, dt) {
         const q = (rate) => 1 - Math.exp(-dt * rate);
-        hands.forEach((h) => { const e = smooth((now - h.t0) / h.dur), t = at(h.to, now) || h.pos; h.pos = [h.from[0] + (t[0] - h.from[0]) * e, h.from[1] + (t[1] - h.from[1]) * e]; });
+        side.v = side.from + (side.to - side.from) * smooth((now - side.t0) / side.dur); ox = side.v * CS * U; oy = side.v * SN * U;
+        body.setAttribute("transform", `translate(${f(fx + ox)} ${f(fy + oy)})`);
+        hands.forEach((h, i) => { const e = smooth((now - h.t0) / h.dur), t = (h.to ? at(h.to, now) : rest(i)) || h.pos; h.pos = [h.from[0] + (t[0] - h.from[0]) * e, h.from[1] + (t[1] - h.from[1]) * e]; });
         // the upper body bends at the hips towards where the hands are
-        const mid = (hands[0].pos[0] + hands[1].pos[0]) / 2 - fx;
+        const mid = (hands[0].pos[0] + hands[1].pos[0]) / 2 - fx - ox;
         lean += (Math.max(-7, Math.min(7, mid / 3.2)) - lean) * q(9);
         const a = (lean * Math.PI) / 180, breath = Math.sin(now * 1.9 + phase) * 0.45;
         top.setAttribute("transform", `translate(0 ${breath.toFixed(2)}) rotate(${lean.toFixed(2)} 0 ${HIP})`);
-        const world = (x, y) => [fx + MAN * (x * Math.cos(a) - (y - HIP) * Math.sin(a)), fy + MAN * (HIP + breath + x * Math.sin(a) + (y - HIP) * Math.cos(a))];
+        const world = (x, y) => [fx + ox + MAN * (x * Math.cos(a) - (y - HIP) * Math.sin(a)), fy + oy + MAN * (HIP + breath + x * Math.sin(a) + (y - HIP) * Math.cos(a))];
         // the head tilts a little towards what the eyes are on; now and then the eyes blink
         const g = gaze && at(gaze, now), face = world(0, -56);
         let want = [0, 0], turn = 0;
@@ -508,6 +520,7 @@ const Factory = (k) => {
           const px = -vy / d, py = vx / d;
           h.bend += ((px * side * 0.6 + py * 0.8 >= 0 ? 1 : -1) - h.bend) * q(14);
           const E = [(S[0] + H[0]) / 2 + px * off * h.bend, (S[1] + H[1]) / 2 + py * off * h.bend], path = `M${f(S[0])} ${f(S[1])}L${f(E[0])} ${f(E[1])}L${f(H[0])} ${f(H[1])}`;
+          h.shown = H;
           const [outer, inner, palm] = arms[i].children;
           outer.setAttribute("d", path); inner.setAttribute("d", path); palm.setAttribute("cx", f(H[0])); palm.setAttribute("cy", f(H[1]));
         });

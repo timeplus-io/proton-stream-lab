@@ -60,6 +60,10 @@ h1 { font: 400 clamp(34px, 6vw, 60px)/1 var(--font-title); margin: 2px 0 6px; le
 .stage .board-n.hot, .stage .hot .board-r, .stage .hot .sheet-r { fill: #c4604f; }
 .stage .halo { fill: none; stroke: #c4604f; stroke-width: 2.4; }
 .stage .banner { font: 400 30px var(--font-hand); letter-spacing: .12em; fill: #b14a3a; }
+.stage .slate-t { font: 400 13px var(--font-hand); letter-spacing: .16em; fill: #fdfaf1; opacity: .7; }
+.stage .slate-h { font: 400 10.5px var(--font-hand); fill: #fdfaf1; opacity: .85; }
+.stage .slate-n { font: 400 17px var(--font-hand); fill: #fdfaf1; }
+.stage .slate-n.hot { fill: #f6dc7f; }
 .stage .plus { font: 400 22px var(--font-hand); fill: #c4604f; }
 .stage.compact .labels { display: none; }
 

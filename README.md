@@ -25,7 +25,7 @@ It is plain SVG with no libraries. There is no SQL on these pages. The Stream La
 | a worker at the line | an operator |
 | the clock on the wall | time |
 | raw candy in, finished candy or a report card out | input stream, output stream |
-| a tally board, a rack | state: what a worker has to remember |
+| a tally board in chalk at the worker's side | state: what a worker has to remember |
 | a recipe sheet that never changes; a note from it stuck on a candy | a table; a joined column |
 
 | # | Story | Scenes | Engineer episode |
@@ -41,7 +41,7 @@ Rules for a story:
 - The worker visibly does the work, and moves like a person. The eyes go to the candy before a hand does. One hand reaches out and meets the candy as it arrives, lifts it in front of the belly, and the other hand joins for the work; then one hand sets it down again or tosses it away, and both hands go back to the sides. A thing in a hand goes where the hand goes; nothing flies into a hand. Hands start and stop gently, elbows stay low and close, and the body bends at the hips towards the work.
 - A join is a note from the recipe sheet stuck on the candy: the worker finds the row that belongs to the candy and sticks a copy of it on.
 - Keep every element clean and clear: nothing in the room that the scene does not use, and nothing overlapping.
-- What a worker has to remember is a thing in the room (a tally board, a rack), and a result that is not the thing itself is a card that travels out on its own line.
+- What a worker has to remember is a thing within the worker's reach (a slate at the worker's side). The worker reads the candy first, then writes on the slate by hand, and wipes it by hand; nothing is written from a distance. A result that is not the thing itself is a card that travels out on its own line.
 - Margin labels name only what the scene is about. Each scene has one short caption that states the idea in plain words and gives the engineer's word last.
 
 The look follows the tradition of hand-drawn isometric explainer sheets, and April Zhu's Tinycharts was the reference for it. All drawing code in `stories/` is written for this repo; none of the Tinycharts kit is used or included.

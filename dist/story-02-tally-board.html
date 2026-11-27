@@ -72,6 +72,10 @@ h1 { font: 400 clamp(34px, 6vw, 60px)/1 var(--font-title); margin: 2px 0 6px; le
 .stage .board-n.hot, .stage .hot .board-r, .stage .hot .sheet-r { fill: #c4604f; }
 .stage .halo { fill: none; stroke: #c4604f; stroke-width: 2.4; }
 .stage .banner { font: 400 30px var(--font-hand); letter-spacing: .12em; fill: #b14a3a; }
+.stage .slate-t { font: 400 13px var(--font-hand); letter-spacing: .16em; fill: #fdfaf1; opacity: .7; }
+.stage .slate-h { font: 400 10.5px var(--font-hand); fill: #fdfaf1; opacity: .85; }
+.stage .slate-n { font: 400 17px var(--font-hand); fill: #fdfaf1; }
+.stage .slate-n.hot { fill: #f6dc7f; }
 .stage .plus { font: 400 22px var(--font-hand); fill: #c4604f; }
 .stage.compact .labels { display: none; }
 
@@ -468,11 +472,13 @@ const Factory = (k) => {
   const at = (p, now) => (typeof p === "function" ? p(now) : p);
   function worker(L, o) {
     const foot = P(o.x, o.y, 0), [fx, fy] = foot, look = o.look ?? 0, coat = o.coat ?? PAL.blue, wide = 6.4 * MAN, phase = o.phase ?? 0;
-    const body = k.node(L.dolls, `<g transform="scale(${MAN})">${k.doll({ look, coat })}</g>`, `transform="translate(${f(fx)} ${f(fy)})"`);
+    const body = k.node(o.layer ?? L.dolls, `<g transform="scale(${MAN})">${k.doll({ look, coat })}</g>`, `transform="translate(${f(fx)} ${f(fy)})"`);
     const top = body.querySelector(".top"), head = body.querySelector(".head"), eyes = body.querySelector(".eyes");
     const arms = k.SHOULDER.map(() => k.node(L.arms, `<path class="ink" stroke-width="${f(wide + 2.6)}"/><path fill="none" stroke="${coat}" stroke-width="${f(wide)}" stroke-linecap="round" stroke-linejoin="round"/>${k.dot(0, 0, f(4.2 * MAN), PAL.skin[look], 1.2)}`));
-    const rest = (i) => [fx + (i ? 17 : -17), fy - 19];            // hands at ease: low, at the worker's sides
-    const hands = [0, 1].map((i) => ({ from: rest(i), to: rest(i), t0: -9, dur: 0.1, pos: rest(i), bend: 1 }));
+    const side = { from: 0, to: 0, t0: -9, dur: 0.1, v: 0 };       // a step to the side along the line, in room units
+    let ox = 0, oy = 0;
+    const rest = (i) => [fx + ox + (i ? 17 : -17), fy + oy - 19];  // hands at ease: low, at the worker's sides
+    const hands = [0, 1].map((i) => ({ from: rest(i), to: null, t0: -9, dur: 0.1, pos: rest(i), shown: rest(i), bend: 1 }));
     let lean = 0, tilt = 0, eye = [0, 0], gaze = null;
     return {
       foot, x: o.x, y: o.y, rest,
@@ -480,19 +486,25 @@ const Factory = (k) => {
       hold: [fx, fy - 29],
       /* where hand i is now (0 is the hand on the left of the sheet) */
       at: (i) => hands[i].pos,
+      /* where hand i is drawn: the same place, unless that is further than the arm is long */
+      shown: (i) => hands[i].shown,
+      /* shift the weight s room units along the line, to reach something at the side; 0 is back in place. The legs are behind the line. */
+      step(s, now, dur = 0.3) { side.from = side.v; side.to = s; side.t0 = now; side.dur = Math.max(0.05, dur); },
       /* send hand i to a point, or to a point that moves (a function of time), to arrive dur seconds from now; no point means back to rest */
-      go(i, to, now, dur = 0.3) { const h = hands[i]; h.from = [h.pos[0], h.pos[1]]; h.to = to || rest(i); h.t0 = now; h.dur = Math.max(0.05, dur); },
+      go(i, to, now, dur = 0.3) { const h = hands[i]; h.from = [h.pos[0], h.pos[1]]; h.to = to || null; h.t0 = now; h.dur = Math.max(0.05, dur); },
       /* what the worker looks at: a point, a function of time, or nothing */
       look(p) { gaze = p; },
       pose(now, dt) {
         const q = (rate) => 1 - Math.exp(-dt * rate);
-        hands.forEach((h) => { const e = smooth((now - h.t0) / h.dur), t = at(h.to, now) || h.pos; h.pos = [h.from[0] + (t[0] - h.from[0]) * e, h.from[1] + (t[1] - h.from[1]) * e]; });
+        side.v = side.from + (side.to - side.from) * smooth((now - side.t0) / side.dur); ox = side.v * CS * U; oy = side.v * SN * U;
+        body.setAttribute("transform", `translate(${f(fx + ox)} ${f(fy + oy)})`);
+        hands.forEach((h, i) => { const e = smooth((now - h.t0) / h.dur), t = (h.to ? at(h.to, now) : rest(i)) || h.pos; h.pos = [h.from[0] + (t[0] - h.from[0]) * e, h.from[1] + (t[1] - h.from[1]) * e]; });
         // the upper body bends at the hips towards where the hands are
-        const mid = (hands[0].pos[0] + hands[1].pos[0]) / 2 - fx;
+        const mid = (hands[0].pos[0] + hands[1].pos[0]) / 2 - fx - ox;
         lean += (Math.max(-7, Math.min(7, mid / 3.2)) - lean) * q(9);
         const a = (lean * Math.PI) / 180, breath = Math.sin(now * 1.9 + phase) * 0.45;
         top.setAttribute("transform", `translate(0 ${breath.toFixed(2)}) rotate(${lean.toFixed(2)} 0 ${HIP})`);
-        const world = (x, y) => [fx + MAN * (x * Math.cos(a) - (y - HIP) * Math.sin(a)), fy + MAN * (HIP + breath + x * Math.sin(a) + (y - HIP) * Math.cos(a))];
+        const world = (x, y) => [fx + ox + MAN * (x * Math.cos(a) - (y - HIP) * Math.sin(a)), fy + oy + MAN * (HIP + breath + x * Math.sin(a) + (y - HIP) * Math.cos(a))];
         // the head tilts a little towards what the eyes are on; now and then the eyes blink
         const g = gaze && at(gaze, now), face = world(0, -56);
         let want = [0, 0], turn = 0;
@@ -508,6 +520,7 @@ const Factory = (k) => {
           const px = -vy / d, py = vx / d;
           h.bend += ((px * side * 0.6 + py * 0.8 >= 0 ? 1 : -1) - h.bend) * q(14);
           const E = [(S[0] + H[0]) / 2 + px * off * h.bend, (S[1] + H[1]) / 2 + py * off * h.bend], path = `M${f(S[0])} ${f(S[1])}L${f(E[0])} ${f(E[1])}L${f(H[0])} ${f(H[1])}`;
+          h.shown = H;
           const [outer, inner, palm] = arms[i].children;
           outer.setAttribute("d", path); inner.setAttribute("d", path); palm.setAttribute("cx", f(H[0])); palm.setAttribute("cy", f(H[1]));
         });
@@ -632,7 +645,8 @@ const Factory = (k) => {
 </script>
 <script>
 /* Story 02, The tally board.
-   Counting needs memory: the board on the wall is the worker's state. The cards that leave are the results.
+   Counting needs memory: the board at the worker's side is the worker's state. The worker reads each candy, then chalks it up
+   by hand, and wipes a column by hand when its time slot is over. The cards that leave are the results.
    Scenes: a card on a timer, a card for every change, a line per time slot, a late candy, and waiting a little. */
 (() => {
   const BY = 3.9;                             // the lines run along y = BY
@@ -641,108 +655,145 @@ const Factory = (k) => {
   const SLOT = 5, PERIOD = 2;                 // seconds in a time slot; seconds between cards on a timer
   const LEAD = 0.3;                           // a hand starts to reach this long before the candy arrives
   const CLOCK = [2.1, 2.85, 0.6];
-  const BD = { x: 4.3, w: 5.2, z: 3.3, h: 1.75 };   // the board on the back wall
+  const STEP = 0.3;                           // how far the worker shifts towards the board to write on it
 
   const SCENES = [
     { id: "tally", label: "Keep a tally", emit: "timer",
-      story: "Counting needs memory. The worker keeps a tally of each flavor on the board. The line never ends, so the tally is never final. Instead, every two seconds a card goes out for each flavor with its total so far, changed or not. Engineers call the board state, and the counting an aggregation." },
+      story: "Counting needs memory. The worker looks at each candy, then chalks one more next to its flavor on the board. The line never ends, so the tally is never final. Instead, every two seconds a card goes out for each flavor with its total so far, changed or not. Engineers call the board state, and the counting an aggregation." },
     { id: "change", label: "Every change", emit: "change",
       story: "The same tally, a different habit. The worker does not wait for the clock. Each candy changes one number, and a card with that new number goes out at once. One candy in, one card out." },
     { id: "slots", label: "Time slots", win: true, delay: 0,
-      story: "A time slot gives the count an end. Every candy carries a stamp with the second it was made, and the board keeps one line for each five-second slot. When the first candy of the next slot shows up, the old slot is complete: its counts go out once, one card for each flavor, and its line is wiped. Engineers call the slot a window." },
+      story: "A time slot gives the count an end. Every candy carries a stamp with the second it was made, and the board has one column for each five-second slot. When the first candy of the next slot shows up, the old slot is complete: its counts go out once, one card for each flavor, and the worker wipes its column. Engineers call the slot a window." },
     { id: "late", label: "A late candy", win: true, delay: 0, disorder: true,
       story: "Some candies get stuck on the way and arrive late. Their stamp is red. A late candy still counts as long as its slot is open. If the slot on the stamp is already closed, its cards have gone out, so the candy goes in the bin." },
     { id: "wait", label: "Wait a little", win: true, delay: 2, disorder: true,
       story: "The same candies, with more patience. The worker keeps each slot open two seconds longer before sending its card, so fewer late candies end up in the bin. The price is that every card goes out two seconds later." },
   ];
 
-  let k, F, P, U, PAL, rnd, sc, L, lineIn, lineOut, hopper, ship, lateBin, who, hands;
+  let k, F, P, U, PAL, rnd, sc, L, lineIn, lineOut, hopper, ship, lateBin, who, hands, bd, chalk;
   let items, cards, rows, counts, nextBorn, queue, slotAt, lastFlavor, wm, maxEt, nextEmit, cur, boardUntil;
 
   const later = (t, fn) => F.later(t, fn);
   const mid = (it) => [it.pos[0], it.pos[1] - it.r * U];           // the middle of a candy
   const plus = (p, g) => [p[0] + g[0], p[1] + g[1]];
   const sec = (t) => ":" + String(((Math.floor(t + 1e-6) % 60) + 60) % 60).padStart(2, "0");
-  const visible = () => [...rows.values()].sort((a, b) => a.ws - b.ws).slice(-2);
-  const rowAt = (i, px, dy = 0) => P(BD.x + (14 + px) / U, 0, BD.z - (56 + i * 31 + dy) / U);
+  const colOf = (ws) => (sc.win ? (((ws / SLOT) % 2) + 2) % 2 : 0);
+  const numAt = (col, j) => [bd.col[col], bd.row(j)];
 
+  /* The board is a slate on two legs at the worker's side, close enough to write on. One line for each flavor.
+     With time slots it has two columns, and the slots take them in turn. */
+  function drawSlate() {
+    const [fx, fy] = who.foot, x0 = fx + 27, x1 = x0 + 52, y0 = fy - 104, y1 = fy - 9;
+    bd = { x0, x1, y0, dot: x0 + 9, col: [x0 + 24, x0 + 41], row: (j) => fy - 58 + j * 18 };
+    k.node(L.board, `<ellipse cx="${k.f((x0 + x1) / 2)}" cy="${k.f(fy + 1)}" rx="30" ry="5" fill="#5c5247" opacity=".13"/>`
+      + k.edges([[[x0 + 9, y1], [x0 + 6, fy + 1]], [[x1 - 9, y1], [x1 - 6, fy + 1]]], { w: 2.2, over: 0 })
+      + k.shape(`M${x0 - 3} ${y0 - 3}L${x1 + 3} ${y0 - 3}L${x1 + 3} ${y1 + 3}L${x0 - 3} ${y1 + 3}Z`, PAL.wood, 1.5)
+      + k.shape(`M${x0} ${y0}L${x1} ${y0}L${x1} ${y1}L${x0} ${y1}Z`, "#56655d", 1.1)
+      + `<text class="slate-t" x="${(x0 + x1) / 2}" y="${y0 + 15}" text-anchor="middle">TALLY</text>`
+      + F.FLAVORS.map((fl, j) => k.dot(bd.dot, bd.row(j), 5.5, PAL[fl], 1.1)).join(""));
+    bd.el = k.node(L.board, "");
+    chalk = k.node(L.arms, `<path class="ink" stroke-width="4.8" stroke-linecap="round"/><path stroke="#fdfaf1" stroke-width="2.8" stroke-linecap="round" fill="none"/>`);
+  }
   function drawBoard(now) {
-    L.board.innerHTML = visible().map((r, i) => {
-      const p = rowAt(i, 0);
-      let h = `<text class="board-r" x="0" y="0">${r.label}</text>`;
-      F.FLAVORS.forEach((fl, j) => { const x = 118 + j * 50; h += k.dot(x, -7, 7.5, PAL[fl], 1.1) + `<text class="board-n${r.hot[fl] > now ? " hot" : ""}" x="${x + 12}" y="2">${r.shown[fl]}</text>`; });
-      return `<g transform="matrix(${k.CS} ${k.SN} 0 1 ${k.f(p[0])} ${k.f(p[1])})"${r.closing ? ' opacity=".4"' : ""}>${h}</g>`;
+    const hand = who.at(1)[1];
+    bd.el.innerHTML = [...rows.values()].map((r) => {
+      const x = bd.col[r.col];
+      let h = sc.win && !r.wipe ? `<text class="slate-h" x="${x}" y="${bd.y0 + 31}" text-anchor="middle">${r.label}</text>` : "";
+      F.FLAVORS.forEach((fl, j) => {
+        if (r.shown[fl] > 0 && !(r.wipe && bd.row(j) < hand + 3)) h += `<text class="slate-n${r.hot[fl] > now ? " hot" : ""}" x="${x}" y="${bd.row(j) + 5.5}" text-anchor="middle">${r.shown[fl]}</text>`;
+      });
+      return `<g${r.closing ? ' opacity=".5"' : ""}>${h}</g>`;
     }).join("");
   }
   function row(ws, label) {
-    if (!rows.has(ws)) rows.set(ws, { ws, label, n: { a: 0, b: 0, c: 0 }, shown: { a: 0, b: 0, c: 0 }, hot: { a: 0, b: 0, c: 0 } });
+    if (!rows.has(ws)) {
+      const col = colOf(ws);
+      [...rows.values()].filter((q) => q.col === col).forEach((q) => rows.delete(q.ws));
+      rows.set(ws, { ws, col, label, n: { a: 0, b: 0, c: 0 }, shown: { a: 0, b: 0, c: 0 }, hot: { a: 0, b: 0, c: 0 } });
+    }
     return rows.get(ws);
   }
   /* a card leaves the board and lands on the card line */
   function send(r, parts, now) {
-    const i = Math.max(0, visible().indexOf(r)), from = rowAt(i, 118 + F.FLAVORS.indexOf(parts[0].flavor) * 50 + 12, 6);
+    const from = numAt(r.col, F.FLAVORS.indexOf(parts[0].flavor));
     const c = F.card(L.cards, { head: sc.win ? sec(r.ws) : null, parts });
     L.cards.insertBefore(c.el, L.cards.firstChild);                 // a later card rides behind the one before it
     c.el.style.display = "none"; counts.cards++;
     F.fly(c.el, from, P(OUT0, BY, F.TOP), now, 0.6, { arc: 34, scale: [0.55, 1], it: c, done: () => { c.t0 = now + 0.6; cards.push(c); } });
   }
-  /* one card for each flavor that has a count, one after another */
-  function sendAll(r, of, now) {
-    F.FLAVORS.filter((fl) => r[of][fl] > 0).forEach((fl, j) => later(now + j * 0.7, (t) => send(r, [{ flavor: fl, n: r[of][fl] }], t)));
+  /* one card for each flavor that has a count, one after another; the answer is when the last one leaves */
+  function sendAll(r, of, t0, gap) {
+    const list = F.FLAVORS.filter((fl) => r[of][fl] > 0);
+    list.forEach((fl, j) => later(t0 + j * gap, (t) => send(r, [{ flavor: fl, n: r[of][fl] }], t)));
+    return t0 + Math.max(0, list.length - 1) * gap;
   }
 
-  /* +1 travels from the candy to its number, and the number changes when it lands */
-  function plusOne(r, fl, now) {
-    const i = Math.max(0, visible().indexOf(r)), el = k.node(L.over, `<text class="plus" text-anchor="middle">+1</text>`), c = who.at(1);
-    F.fly(el, [c[0] + 4, c[1] - 14], rowAt(i, 118 + F.FLAVORS.indexOf(fl) * 50 + 18, 6), now, 0.32, { arc: 10, done: () => el.remove() });
-    later(now + 0.32, (t) => {
+  /* the chalk is on the board: a moment later the number has changed */
+  function chalkUp(r, fl, now) {
+    later(now + 0.07, (t) => {
       r.shown[fl]++; r.hot[fl] = t + 0.6; boardUntil = t + 0.7; drawBoard(t);
-      if (sc.emit === "change") send(r, [{ flavor: fl, n: r.shown[fl] }], t);
+      if (sc.emit === "change") later(t + 0.25, (u) => send(r, [{ flavor: fl, n: r.shown[fl] }], u));
     });
   }
 
-  /* the worker has the candy in hand: count it, or find that it is too late */
+  /* the worker has read the candy: count it, or find that it is too late */
   function decide(it, now) {
-    if (!sc.win) { const r = row(0, "so far"); r.n[it.flavor]++; plusOne(r, it.flavor, now); counts.counted++; return; }
+    if (!sc.win) { const r = row(0, ""); r.n[it.flavor]++; chalkUp(r, it.flavor, now); counts.counted++; return; }
     if (it.et < wm) { it.late = true; counts.late++; return; }
-    const ws = Math.floor(it.et / SLOT) * SLOT, r = row(ws, `${sec(ws)} – ${sec(ws + SLOT)}`);
-    r.n[it.flavor]++; plusOne(r, it.flavor, now); counts.counted++; if (it.warn) counts.saved++;
+    const ws = Math.floor(it.et / SLOT) * SLOT, r = row(ws, sec(ws));
+    r.n[it.flavor]++; chalkUp(r, it.flavor, now); counts.counted++; if (it.warn) counts.saved++;
     maxEt = Math.max(maxEt, it.et); wm = Math.max(wm, Math.floor((maxEt - sc.delay) / SLOT) * SLOT);
     [...rows.values()].filter((q) => !q.closing && q.ws + SLOT <= wm).forEach((q) => {      // these slots are complete
       q.closing = true; counts.closed++;
-      later(now + 0.45, (t) => { drawBoard(t); sendAll(q, "n", t); });
-      later(now + 1.9, (t) => { rows.delete(q.ws); drawBoard(t); });
+      later(now + 0.12, (t) => drawBoard(t));
+      q.lastCard = sendAll(q, "n", now + 0.3, 0.55);
+      later(now + 3.4, (t) => { if (rows.get(q.ws) === q) { rows.delete(q.ws); drawBoard(t); } });     // in case no hand was free to wipe it
     });
   }
   /* The moves for one candy, as a person makes them. The eyes go to the candy first. The left hand meets it as it arrives and
-     lifts it in front of the belly, where its stamp is read. The right hand comes up to chalk it on the board.
-     Then the left hand carries the candy over the box and lets go, or tosses it in the bin if it is too late. */
+     lifts it in front of the belly, where its stamp is read. Then the worker turns to the board: a small step towards it,
+     the eyes on the number, the right hand with the chalk on the board, and the number changes under the chalk.
+     Meanwhile the left hand carries the candy over the box and lets go, or tosses it in the bin if it is too late.
+     A column whose slot is over, and whose cards have gone out, is wiped with the same hand before it goes back down. */
   function take(it, tp) {
-    const r = it.r * U, g0 = F.grasp(0, r), H = who.hold, [fx, fy] = who.foot, late = sc.win && it.et < wm, t1 = tp + 0.46;
+    const r = it.r * U, g0 = F.grasp(0, r), H = who.hold, [fx, fy] = who.foot, late = sc.win && it.et < wm;
+    const ws = sc.win ? Math.floor(it.et / SLOT) * SLOT : 0, spot = numAt(colOf(ws), F.FLAVORS.indexOf(it.flavor)), pen = [spot[0] - 7, spot[1] + 4];
+    const free = tp + (late ? 0.5 : 0.64);                                         // when the right hand has nothing more to write
     it.state = "hand"; cur.it = it; cur.next = null;
     F.give(it, who, 0); who.go(0, plus(H, g0), tp, 0.26);
     later(tp + 0.3, () => { it.busy = true; });
-    if (!late) {
-      later(tp + 0.08, () => who.go(1, [fx + 25, fy - 50], tp + 0.08, 0.24));
-      later(tp + 0.5, () => who.go(1, null, tp + 0.5, 0.3));
+    if (late) later(tp + 0.4, (t) => decide(it, t));
+    else {
+      later(tp + 0.12, () => { who.step(STEP, tp + 0.12, 0.3); who.go(1, pen, tp + 0.12, 0.32); });
+      later(tp + 0.26, () => { cur.eye = spot; });
+      later(tp + 0.44, (t) => { decide(it, t); who.go(1, (u) => [pen[0] + 2.2 * Math.sin((u - t) * 63), pen[1] + 1.5 * Math.sin((u - t) * 39)], t, 0.05); });
     }
-    later(tp + 0.36, (t) => decide(it, t));
-    later(t1, () => {
+    later(tp + 0.5, () => {
       it.busy = false;
       if (it.late) {
-        who.go(0, [fx - 31, fy - 27], t1, 0.18);                                   // a short swing towards the bin
-        later(t1 + 0.18, (t) => { it.hand = null; it.state = "out"; F.drop(it, it.pos, lateBin, t); who.go(0, null, t, 0.34); });
+        who.go(0, [fx - 31, fy - 27], tp + 0.5, 0.18);                             // a short swing towards the bin
+        later(tp + 0.68, (t) => { it.hand = null; it.state = "out"; F.drop(it, it.pos, lateBin, t); who.go(0, null, t, 0.34); });
       } else {
-        who.go(0, [fx + 3, fy - 17], t1, 0.22);                                    // over the box
-        later(t1 + 0.22, (t) => { it.hand = null; it.state = "out"; it.el.classList.add("air"); F.fly(it.el, it.pos, hopper.floor, t, 0.24, { it, done: () => it.el.remove() }); who.go(0, null, t, 0.3); });
+        who.go(0, [fx + 3, fy - 17], tp + 0.5, 0.22);                              // over the box
+        later(tp + 0.72, (t) => { it.hand = null; it.state = "out"; it.el.classList.add("air"); F.fly(it.el, it.pos, hopper.floor, t, 0.24, { it, done: () => it.el.remove() }); who.go(0, null, t, 0.3); });
       }
-      later(t1 + 0.4, () => { if (cur.it === it) cur.it = null; });
     });
+    later(free, () => {
+      const q = [...rows.values()].find((c) => c.closing && !c.wipe && c.lastCard <= free + 0.1);
+      cur.eye = null;
+      if (!q) { if (!late) { who.go(1, null, free, 0.3); who.step(0, free, 0.3); } return; }
+      const x = bd.col[q.col] - 7, t1 = free + (late ? 0.26 : 0.14), t2 = t1 + 0.18;
+      if (late) who.step(STEP, free, 0.26);
+      who.go(1, [x, bd.row(0) - 6], free, t1 - free); cur.eye = [x, bd.row(1)];
+      later(t1, () => { q.wipe = true; who.go(1, [x, bd.row(2) + 5], t1, t2 - t1); });
+      later(t2, (t) => { rows.delete(q.ws); drawBoard(t); cur.eye = null; who.go(1, null, t2, 0.28); who.step(0, t2, 0.28); });
+    });
+    later(tp + 0.9, () => { if (cur.it === it) cur.it = null; });
   }
   /* the worker keeps an eye on the next candy, and starts to reach a moment before it arrives */
   function attend(now) {
     const it = cur.it || cur.next || items.find((c) => c.state === "line");
-    who.look(it && it.pos ? () => (it.pos ? mid(it) : null) : null);
+    who.look(cur.eye || (it && it.pos ? () => (it.pos ? mid(it) : null) : null));
     if (cur.next || !it || it.state !== "line") return;
     const tp = it.born + CX / F.V;
     if (tp - now > LEAD) return;
@@ -787,11 +838,11 @@ const Factory = (k) => {
   }
 
   function labels() {
-    const b0 = P(BD.x + BD.w - 0.5, 0, BD.z - 0.3), head = [who.foot[0] + 15 * F.MAN, who.foot[1] - 58 * F.MAN];
+    const b0 = [bd.x1 - 3, bd.y0 + 5], head = [who.foot[0] - 14 * F.MAN, who.foot[1] - 62 * F.MAN];
     const list = [
       { title: "KITCHEN", note: sc.win ? "each candy gets a time stamp" : "candies come out one by one", x: 56, y: 150, side: "start", to: P(0, BY + 0.3, 1.7) },
-      { title: "TALLY BOARD", note: sc.win ? "one line for each time slot" : "the worker's memory", x: 1344, y: 150, side: "end", to: b0 },
-      { title: "COUNTER", note: "picks up every candy and counts it", x: 56, y: 520, side: "start", to: head },
+      { title: "TALLY BOARD", note: sc.win ? "one column for each time slot" : "the worker's memory, in chalk", x: 1344, y: 150, side: "end", to: b0 },
+      { title: "COUNTER", note: "reads every candy, then chalks it up", x: 56, y: 520, side: "start", to: head },
       { title: "CARDS", note: sc.win ? "one per flavor for each finished slot" : sc.emit === "timer" ? "every flavor's total, every 2 seconds" : "one for every change", x: 1344, y: 650, side: "end", to: P(OUT1 - 0.6, BY + 0.45, F.TOP) },
     ];
     if (lateBin) list.push({ title: "TOO LATE", note: "its slot is already closed", x: 56, y: 680, side: "start", to: P(lateBin.x - 0.45, lateBin.y + 0.5, 0.45) });
@@ -802,19 +853,19 @@ const Factory = (k) => {
     k = kit; F = Factory(kit); P = kit.P; U = kit.U; PAL = kit.PAL; sc = scene; rnd = kit.rng(19); F.reset();
     items = []; cards = []; rows = new Map(); queue = []; ahead = null; lastFlavor = null; lateBin = null;
     counts = { counted: 0, cards: 0, closed: 0, late: 0, saved: 0 };
-    wm = -Infinity; maxEt = -Infinity; nextEmit = PERIOD; cur = { it: null, next: null }; boardUntil = 0;
+    wm = -Infinity; maxEt = -Infinity; nextEmit = PERIOD; cur = { it: null, next: null, eye: null }; boardUntil = 0;
     slotAt = -SLOT; nextBorn = -CX / F.V + 0.3;
     F.room({ clock: CLOCK, door: 11.2 });
-    k.still(F.panel(BD.x, BD.x + BD.w, BD.z - BD.h, BD.z, "#fdfaf1", 1.7) + `<text class="board-t" transform="${F.onBack(BD.x + 14 / U, BD.z - 25 / U)}">TALLY</text>`);
     // the moving part of the sheet, back to front
     L = { clock: k.layer(), board: k.layer(), dolls: k.layer(), belt: k.layer(), under: k.layer(), candy: k.layer(), cards: k.layer(), arms: k.layer(), over: k.layer() };
     hands = F.clockHands(L.clock, CLOCK);
     lineIn = F.belt(L.belt, 0, IN1, BY); lineOut = F.belt(L.belt, OUT0 - 0.7, OUT1, BY);
     who = F.worker(L, { x: WX, y: BY - F.GAP, look: 1, coat: PAL.green });
+    drawSlate();
     hopper = F.bin(L, WX + 0.45, BY - 0.6, 1.2, 1.2, 0.7, PAL.wood);
     ship = F.bin(L, OUT1 + 0.4, BY - 0.7, 1.5, 1.4, 0.75, PAL.wood);
     if (sc.disorder) lateBin = F.bin(L, WX - 1.5, BY + 1.3, 1.2, 1.0, 0.7, PAL.red);
-    if (!sc.win) row(0, "so far");
+    if (!sc.win) row(0, "");
     k.labelLayer(); labels();
     k.focus([246, 24, 908, 760]);
     drawBoard(0); tick(0, 0);
@@ -824,6 +875,8 @@ const Factory = (k) => {
     spawn(now);
     F.run(now);
     attend(now); who.pose(now, dt);
+    { const h = who.shown(1), d = `M${k.f(h[0] + 2)} ${k.f(h[1] - 3)}L${k.f(h[0] + 6)} ${k.f(h[1] - 9)}`; chalk.children[0].setAttribute("d", d); chalk.children[1].setAttribute("d", d); }     // the chalk in the right hand
+    if ([...rows.values()].some((q) => q.wipe)) drawBoard(now);
     items.forEach((it) => {
       if (it.state === "hand") { F.put(it, F.carried(it), { air: true, low: true, busy: it.busy }); return; }
       if (it.state !== "line") return;
@@ -831,7 +884,7 @@ const Factory = (k) => {
       F.put(it, P(Math.min(x, CX), BY, F.TOP)); it.el.style.opacity = Math.max(0, Math.min(1, (x - 0.05) / 0.3));
     });
     items = items.filter((it) => it.state !== "out");
-    if (sc.emit === "timer" && now >= nextEmit) { sendAll(rows.get(0), "shown", now); nextEmit += PERIOD; }
+    if (sc.emit === "timer" && now >= nextEmit) { sendAll(rows.get(0), "shown", now, 0.6); nextEmit += PERIOD; }
     cards = cards.filter((c) => {
       const x = OUT0 + F.V * (now - c.t0);
       if (x >= OUT1) { F.drop(c, P(OUT1, BY, F.TOP), ship, now); return false; }
