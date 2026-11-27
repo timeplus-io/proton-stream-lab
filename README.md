@@ -21,7 +21,7 @@ It is plain SVG with no libraries. There is no SQL on these pages. The Stream La
 | In the story | In stream processing |
 |---|---|
 | the production line, which never stops | a stream |
-| one candy on the line: its flavor, the weight on its tag, the time on its stamp | one event: its key, its value, its event time |
+| one candy on the line: its flavor, the weight a worker reads off the scale and writes on its tag, the time on its stamp | one event: its key, its value, its event time |
 | a worker at the line | an operator |
 | the clock on the wall | time |
 | raw candy in, finished candy or a report card out | input stream, output stream |
@@ -30,7 +30,7 @@ It is plain SVG with no libraries. There is no SQL on these pages. The Stream La
 
 | # | Story | Scenes | Engineer episode |
 |---|---|---|---|
-| 01 | [The candy line](dist/story-01-candy-line.html) ([preview](https://claude.ai/artifact/R493f7zWncGesHC1xrh1FQ)) | the line (pass through), the inspector (keeps what is heavier than 30 g), the price (2¢ a gram), the whole line | 01 Stateless transform |
+| 01 | [The candy line](dist/story-01-candy-line.html) ([preview](https://claude.ai/artifact/R493f7zWncGesHC1xrh1FQ)) | the line (every candy is weighed and tagged), the inspector (weighs, keeps what is heavier than 30 g), the price (a second worker writes 2¢ a gram), the whole line | 01 Stateless transform |
 | 02 | [The tally board](dist/story-02-tally-board.html) ([preview](https://claude.ai/artifact/RVBX5zR6T1nTExjA3uSyLW)) | keep a tally (every 2 seconds a card per flavor), every change, time slots (windows), a late candy, wait a little | 02 Streaming aggregation |
 | 03 | [The recipe sheet](dist/story-03-two-lines.html) ([preview](https://claude.ai/artifact/PiEduM87snHWvJE5bB18q7)) | the recipe sheet (stream and table). To come: slips that arrive on a second line and change the sheet (stream and stream, within 5 seconds, latest) | 03 Streaming join |
 
@@ -41,7 +41,7 @@ Rules for a story:
 - The worker visibly does the work, and moves like a person. The eyes go to the candy before a hand does. One hand reaches out and meets the candy as it arrives, lifts it in front of the belly, and the other hand joins for the work; then one hand sets it down again or tosses it away, and both hands go back to the sides. A thing in a hand goes where the hand goes; nothing flies into a hand. Hands start and stop gently, elbows stay low and close, and the body bends at the hips towards the work.
 - A join is a note from the recipe sheet stuck on the candy: the worker finds the row that belongs to the candy and sticks a copy of it on.
 - Keep every element clean and clear: nothing in the room that the scene does not use, and nothing overlapping.
-- What a worker has to remember is a thing within the worker's reach (a slate at the worker's side). The worker reads the candy first, then writes on the slate by hand, and wipes it by hand; nothing is written from a distance. A result that is not the thing itself is a card that travels out on its own line.
+- Everything that happens has a cause the reader can see, done by hand and within reach. A candy has no weight until a worker has put it on the scale, read the window and tied on a tag. What a worker has to remember is a slate at the worker's side: the worker sees the candy, then chalks the number up, and wipes a column by hand. A result is a card the same worker writes on the pad at the head of the card line and pushes onto it. A hand does one thing at a time, so jobs wait their turn. Nothing is written, moved or wiped from a distance.
 - Margin labels name only what the scene is about. Each scene has one short caption that states the idea in plain words and gives the engineer's word last.
 
 The look follows the tradition of hand-drawn isometric explainer sheets, and April Zhu's Tinycharts was the reference for it. All drawing code in `stories/` is written for this repo; none of the Tinycharts kit is used or included.

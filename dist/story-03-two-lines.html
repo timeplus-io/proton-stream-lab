@@ -431,7 +431,7 @@ const Factory = (k) => {
   }
 
   /* ----- a line (conveyor) from x0 to x1, centred on y. Its slats move, so the line visibly runs. ----- */
-  function belt(layer, x0, x1, y) {
+  function belt(layer, x0, x1, y, v = V) {
     const y0 = y - BW / 2, y1 = y + BW / 2, id = "belt" + ++uid;
     const top = [P(x0, y0 + 0.08, TOP), P(x1, y0 + 0.08, TOP), P(x1, y1 - 0.08, TOP), P(x0, y1 - 0.08, TOP)];
     const legs = []; for (let x = x0 + (x0 === 0 ? 1.2 : 0.3); x < x1 - 1.2; x += 2.4) legs.push(x); legs.push(x1 - 0.3);
@@ -443,7 +443,7 @@ const Factory = (k) => {
     for (let x = x0 - SLAT; x < x1; x += SLAT) { const a = P(x, y0 + 0.12, TOP), b = P(x, y1 - 0.12, TOP); lines += `M${f(a[0])} ${f(a[1])}L${f(b[0])} ${f(b[1])}`; }
     h += `<defs><clipPath id="${id}"><path d="${path(top)}"/></clipPath></defs><g clip-path="url(#${id})"><g class="slats"><path d="${lines}" stroke="#c9c2b8" stroke-width="1.3" opacity=".75" fill="none"/></g></g>`;
     const slats = k.node(layer, h).querySelector(".slats");
-    return { x0, x1, y, at: (x, z = TOP) => P(x, y, z), update(t) { const ph = (V * t) % SLAT; slats.setAttribute("transform", `translate(${f(ph * CS * U)} ${f(ph * SN * U)})`); } };
+    return { x0, x1, y, at: (x, z = TOP) => P(x, y, z), update(t) { const ph = (v * t) % SLAT; slats.setAttribute("transform", `translate(${f(ph * CS * U)} ${f(ph * SN * U)})`); } };
   }
   /* a low table with a wooden top, the same height as a line: somewhere to keep things */
   function rack(layer, x0, x1, y) {
@@ -477,7 +477,8 @@ const Factory = (k) => {
     const arms = k.SHOULDER.map(() => k.node(L.arms, `<path class="ink" stroke-width="${f(wide + 2.6)}"/><path fill="none" stroke="${coat}" stroke-width="${f(wide)}" stroke-linecap="round" stroke-linejoin="round"/>${k.dot(0, 0, f(4.2 * MAN), PAL.skin[look], 1.2)}`));
     const side = { from: 0, to: 0, t0: -9, dur: 0.1, v: 0 };       // a step to the side along the line, in room units
     let ox = 0, oy = 0;
-    const rest = (i) => [fx + ox + (i ? 17 : -17), fy + oy - 19];  // hands at ease: low, at the worker's sides
+    const ease = o.rest ?? [[-17, -19], [17, -19]];                // hands at ease: low, at the worker's sides
+    const rest = (i) => [fx + ox + ease[i][0], fy + oy + ease[i][1]];
     const hands = [0, 1].map((i) => ({ from: rest(i), to: null, t0: -9, dur: 0.1, pos: rest(i), shown: rest(i), bend: 1 }));
     let lean = 0, tilt = 0, eye = [0, 0], gaze = null;
     return {
