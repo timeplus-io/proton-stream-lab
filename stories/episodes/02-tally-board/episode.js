@@ -6,6 +6,7 @@
   const WX = 3.9, CX = WX - 0.1, IN1 = WX + 0.25;   // the worker stands at WX; a candy is picked up at CX; the candy line ends at IN1
   const OUT0 = 7.6, OUT1 = 10.6;              // the card line
   const SLOT = 5, PERIOD = 2;                 // seconds in a time slot; seconds between cards on a timer
+  const LEAD = 0.3;                           // a hand starts to reach this long before the candy arrives
   const CLOCK = [2.1, 2.85, 0.6];
   const BD = { x: 4.3, w: 5.2, z: 3.3, h: 1.75 };   // the board on the back wall
 
@@ -23,9 +24,11 @@
   ];
 
   let k, F, P, U, PAL, rnd, sc, L, lineIn, lineOut, hopper, ship, lateBin, who, hands;
-  let items, cards, todo, rows, counts, nextBorn, queue, slotAt, lastFlavor, wm, maxEt, nextEmit, cur, boardUntil;
+  let items, cards, rows, counts, nextBorn, queue, slotAt, lastFlavor, wm, maxEt, nextEmit, cur, boardUntil;
 
-  const later = (t, fn) => todo.push({ t, fn });
+  const later = (t, fn) => F.later(t, fn);
+  const mid = (it) => [it.pos[0], it.pos[1] - it.r * U];           // the middle of a candy
+  const plus = (p, g) => [p[0] + g[0], p[1] + g[1]];
   const sec = (t) => ":" + String(((Math.floor(t + 1e-6) % 60) + 60) % 60).padStart(2, "0");
   const visible = () => [...rows.values()].sort((a, b) => a.ws - b.ws).slice(-2);
   const rowAt = (i, px, dy = 0) => P(BD.x + (14 + px) / U, 0, BD.z - (56 + i * 31 + dy) / U);
@@ -57,8 +60,8 @@
 
   /* +1 travels from the candy to its number, and the number changes when it lands */
   function plusOne(r, fl, now) {
-    const i = Math.max(0, visible().indexOf(r)), el = k.node(L.over, `<text class="plus" text-anchor="middle">+1</text>`), c = who.chest(0);
-    F.fly(el, [c[0] + 26, c[1] - 62], rowAt(i, 118 + F.FLAVORS.indexOf(fl) * 50 + 18, 6), now, 0.32, { arc: 10, done: () => el.remove() });
+    const i = Math.max(0, visible().indexOf(r)), el = k.node(L.over, `<text class="plus" text-anchor="middle">+1</text>`), c = who.at(1);
+    F.fly(el, [c[0] + 4, c[1] - 14], rowAt(i, 118 + F.FLAVORS.indexOf(fl) * 50 + 18, 6), now, 0.32, { arc: 10, done: () => el.remove() });
     later(now + 0.32, (t) => {
       r.shown[fl]++; r.hot[fl] = t + 0.6; boardUntil = t + 0.7; drawBoard(t);
       if (sc.emit === "change") send(r, [{ flavor: fl, n: r.shown[fl] }], t);
@@ -78,14 +81,41 @@
       later(now + 1.9, (t) => { rows.delete(q.ws); drawBoard(t); });
     });
   }
-  function pick(it, now) {
-    const c = who.chest(it.r * U);
-    it.state = "hand"; cur.it = it; it.el.classList.add("air", "low");
-    F.fly(it.el, P(CX, BY, F.TOP), c, now, 0.28, { arc: 5, it });
-    later(now + 0.32, () => it.el.classList.add("busy"));
-    later(now + 0.46, (t) => decide(it, t));
-    later(now + 0.66, (t) => { it.el.classList.remove("busy"); F.drop(it, c, it.late ? lateBin : hopper, t); });
-    later(now + 0.86, () => { if (cur.it === it) cur.it = null; });
+  /* The moves for one candy, as a person makes them. The eyes go to the candy first. The left hand meets it as it arrives and
+     lifts it in front of the belly, where its stamp is read. The right hand comes up to chalk it on the board.
+     Then the left hand carries the candy over the box and lets go, or tosses it in the bin if it is too late. */
+  function take(it, tp) {
+    const r = it.r * U, g0 = F.grasp(0, r), H = who.hold, [fx, fy] = who.foot, late = sc.win && it.et < wm, t1 = tp + 0.46;
+    it.state = "hand"; cur.it = it; cur.next = null;
+    F.give(it, who, 0); who.go(0, plus(H, g0), tp, 0.26);
+    later(tp + 0.3, () => { it.busy = true; });
+    if (!late) {
+      later(tp + 0.08, () => who.go(1, [fx + 25, fy - 50], tp + 0.08, 0.24));
+      later(tp + 0.5, () => who.go(1, null, tp + 0.5, 0.3));
+    }
+    later(tp + 0.36, (t) => decide(it, t));
+    later(t1, () => {
+      it.busy = false;
+      if (it.late) {
+        who.go(0, [fx - 31, fy - 27], t1, 0.18);                                   // a short swing towards the bin
+        later(t1 + 0.18, (t) => { it.hand = null; it.state = "out"; F.drop(it, it.pos, lateBin, t); who.go(0, null, t, 0.34); });
+      } else {
+        who.go(0, [fx + 3, fy - 17], t1, 0.22);                                    // over the box
+        later(t1 + 0.22, (t) => { it.hand = null; it.state = "out"; it.el.classList.add("air"); F.fly(it.el, it.pos, hopper.floor, t, 0.24, { it, done: () => it.el.remove() }); who.go(0, null, t, 0.3); });
+      }
+      later(t1 + 0.4, () => { if (cur.it === it) cur.it = null; });
+    });
+  }
+  /* the worker keeps an eye on the next candy, and starts to reach a moment before it arrives */
+  function attend(now) {
+    const it = cur.it || cur.next || items.find((c) => c.state === "line");
+    who.look(it && it.pos ? () => (it.pos ? mid(it) : null) : null);
+    if (cur.next || !it || it.state !== "line") return;
+    const tp = it.born + CX / F.V;
+    if (tp - now > LEAD) return;
+    cur.next = it;
+    who.go(0, () => it.pos && plus(mid(it), F.grasp(0, it.r * U)), now, Math.max(0.12, tp - now));
+    later(tp, () => take(it, tp));
   }
 
   /* ----- the candies. With time slots they follow a fixed pattern, so each slot has one clear late candy. ----- */
@@ -95,7 +125,7 @@
     return (lastFlavor = fl);
   }
   function fillSlot(B) {
-    const t1 = B + 0.15 + rnd() * 0.4, t2 = t1 + 1.0 + rnd() * 0.4, t3 = t2 + 1.0 + rnd() * 0.3, t4 = t3 + 1.0 + rnd() * 0.3;
+    const t1 = B + 0.15 + rnd() * 0.1, t2 = t1 + 1.2 + rnd() * 0.04, t3 = t2 + 1.2 + rnd() * 0.04, t4 = t3 + 1.2 + rnd() * 0.04;    // never faster than a pair of hands can take them
     const stuck = sc.disorder && B >= 5, veryStuck = sc.disorder && B >= 10 && (B / SLOT) % 2 === 0;
     queue.push({ born: t1, et: t1 });
     queue.push(stuck ? { born: t2, et: B - 0.4 - rnd() * 0.9, warn: true } : { born: t2, et: t2 });
@@ -107,7 +137,7 @@
       while (!queue.length) { fillSlot(slotAt); slotAt += SLOT; }
       return queue.shift();
     }
-    const born = nextBorn; nextBorn += rnd() < 0.18 ? 1.0 + rnd() * 0.2 : 1.4 + rnd() * 1.9;
+    const born = nextBorn; nextBorn += rnd() < 0.18 ? 1.25 + rnd() * 0.15 : 1.5 + rnd() * 1.9;
     return { born };
   }
   let ahead = null;
@@ -137,9 +167,9 @@
 
   function init(kit, scene) {
     k = kit; F = Factory(kit); P = kit.P; U = kit.U; PAL = kit.PAL; sc = scene; rnd = kit.rng(19); F.reset();
-    items = []; cards = []; todo = []; rows = new Map(); queue = []; ahead = null; lastFlavor = null; lateBin = null;
+    items = []; cards = []; rows = new Map(); queue = []; ahead = null; lastFlavor = null; lateBin = null;
     counts = { counted: 0, cards: 0, closed: 0, late: 0, saved: 0 };
-    wm = -Infinity; maxEt = -Infinity; nextEmit = PERIOD; cur = { it: null }; boardUntil = 0;
+    wm = -Infinity; maxEt = -Infinity; nextEmit = PERIOD; cur = { it: null, next: null }; boardUntil = 0;
     slotAt = -SLOT; nextBorn = -CX / F.V + 0.3;
     F.room({ clock: CLOCK, door: 11.2 });
     k.still(F.panel(BD.x, BD.x + BD.w, BD.z - BD.h, BD.z, "#fdfaf1", 1.7) + `<text class="board-t" transform="${F.onBack(BD.x + 14 / U, BD.z - 25 / U)}">TALLY</text>`);
@@ -159,24 +189,22 @@
 
   function tick(dt, now) {
     spawn(now);
+    F.run(now);
+    attend(now); who.pose(now, dt);
     items.forEach((it) => {
+      if (it.state === "hand") { F.put(it, F.carried(it), { air: true, low: true, busy: it.busy }); return; }
       if (it.state !== "line") return;
       const x = F.V * (now - it.born);
-      if (x >= CX) { pick(it, now); return; }
-      F.put(it, P(x, BY, F.TOP)); it.el.style.opacity = Math.max(0, Math.min(1, (x - 0.05) / 0.3));
+      F.put(it, P(Math.min(x, CX), BY, F.TOP)); it.el.style.opacity = Math.max(0, Math.min(1, (x - 0.05) / 0.3));
     });
-    items = items.filter((it) => it.state === "line");
-    const due = todo.filter((j) => j.t <= now); todo = todo.filter((j) => j.t > now); due.sort((a, b) => a.t - b.t).forEach((j) => j.fn(now));
+    items = items.filter((it) => it.state !== "out");
     if (sc.emit === "timer" && now >= nextEmit) { sendAll(rows.get(0), "shown", now); nextEmit += PERIOD; }
     cards = cards.filter((c) => {
       const x = OUT0 + F.V * (now - c.t0);
       if (x >= OUT1) { F.drop(c, P(OUT1, BY, F.TOP), ship, now); return false; }
       F.put(c, P(x, BY, F.TOP)); return true;
     });
-    F.run(now);
     if (boardUntil && now > boardUntil) { boardUntil = 0; drawBoard(now); }
-    const it = cur.it || items.find((c) => c.state === "line" && F.V * (now - c.born) > CX - 0.3);      // the next candy is reached for a moment before it is taken
-    who.pose(now, dt, it && it.pos ? F.grip([it.pos[0], it.pos[1] - it.r * U], it.r * U * 0.85) : [null, null]);
     lineIn.update(now); lineOut.update(now); hands(now);
   }
 

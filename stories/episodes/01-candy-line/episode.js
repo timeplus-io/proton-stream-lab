@@ -4,7 +4,7 @@
    The same candies come out of the kitchen in every scene; only the workers change. */
 (() => {
   const X1 = 10.6, BY = 3.9;                 // the line ends at X1 and runs along y = BY
-  const HOLD = 0.8;                          // seconds a worker has a candy in hand
+  const LEAD = 0.36, CARRY = 0.7;            // a hand starts to reach LEAD seconds before the candy arrives; the candy is set down as far along as the line runs in CARRY seconds
   const LIMIT = 30, RATE = 2;                // the filter keeps candies heavier than LIMIT grams; the price is RATE cents a gram
   const CLOCK = [5.9, 2.85, 0.6];
 
@@ -20,11 +20,13 @@
   ];
 
   let k, F, P, U, rnd, sc, L, line, ship, hands, items, stations, nextBorn, lightRun, lastFlavor, counts;
-  const ease = (u) => { const v = Math.max(0, Math.min(1, u)); return v * v * (3 - 2 * v); };
+  const mid = (it) => [it.pos[0], it.pos[1] - it.r * U];           // the middle of a candy
+  const plus = (p, g) => [p[0] + g[0], p[1] + g[1]];
 
   function station(def, i) {
     const PAL = k.PAL, look = { watch: 0, filter: 1, price: 2 }[def.kind], coat = { watch: PAL.green, filter: PAL.blue, price: PAL.red }[def.kind];
-    const st = { ...def, who: F.worker(L, { x: def.x, y: BY - F.GAP, look, coat, phase: i * 1.7 }), cur: null, pick: def.x - 0.1 };
+    const st = { ...def, i, who: F.worker(L, { x: def.x, y: BY - F.GAP, look, coat, phase: i * 1.7 }), cur: null, next: null, pick: def.x - 0.1 };
+    st.put = st.pick + F.V * CARRY;
     if (def.kind === "filter") st.bin = F.bin(L, def.x + 0.1, BY + 1.2, 1.2, 1.0, 0.7, PAL.red);
     return st;
   }
@@ -41,49 +43,74 @@
     items.push(it);
     return it;
   }
-  const gap = () => (rnd() < 0.2 ? 0.95 + rnd() * 0.2 : 1.4 + rnd() * 2.1);    // candies come unevenly, sometimes two close together
+  const gap = () => (rnd() < 0.2 ? 1.6 + rnd() * 0.2 : 1.9 + rnd() * 1.9);    // candies come unevenly, but never faster than a pair of hands can take them
 
-  /* what a worker does to the candy in hand */
-  function work(it, st, now, quiet) {
-    if (st.kind === "watch") { if (!quiet) counts.seen++; return; }
-    if (st.kind === "price") { it.wrapped = true; it.flag = it.grams * RATE + "¢"; F.redraw(it); if (!quiet) counts.priced++; return; }
-    if (it.grams > LIMIT) { if (!quiet) counts.passed++; return; }
-    it.state = "out";
-    if (quiet) it.el.remove(); else { it.el.classList.remove("busy"); F.drop(it, it.pos, st.bin, now); st.toss = it; st.let = now; counts.light++; }
+  /* what a worker does to the candy in hand; the answer is whether the candy stays on the line */
+  function work(it, st, quiet) {
+    if (st.kind === "watch") { if (!quiet) counts.seen++; return true; }
+    if (st.kind === "price") { it.wrapped = true; it.flag = it.grams * RATE + "¢"; F.redraw(it); if (!quiet) counts.priced++; return true; }
+    if (it.grams > LIMIT) { if (!quiet) counts.passed++; return true; }
+    if (!quiet) counts.light++;
+    return false;
+  }
+
+  /* The moves of a worker for one candy, as a person makes them. The eyes go to the candy first. One hand reaches out and
+     meets it at the moment it arrives, and lifts it in front of the belly. The other hand joins for the work. Then one hand
+     alone sets it down on the line a little further along, or tosses it in the bin, and both hands go back to the worker's sides. */
+  function take(st, it, tp) {
+    const w = st.who, r = it.r * U, g0 = F.grasp(0, r), g1 = F.grasp(1, r), H = w.hold, t1 = tp + 0.4, t2 = tp + 0.8, wave = (t) => Math.sin(((t - t1) / (t2 - t1)) * Math.PI * 4);
+    it.state = "hand"; st.cur = it; st.next = null; it.done++;
+    F.give(it, w, 0); w.go(0, plus(H, g0), tp, 0.3);
+    F.later(tp + 0.1, () => w.go(1, plus(H, g1), tp + 0.1, 0.28));
+    F.later(t1, () => {
+      it.busy = true;
+      if (st.kind === "price") { it.rot = (t) => 10 * wave(t); w.go(1, (t) => plus(H, [g1[0], g1[1] + 3 * wave(t)]), t1, 0.05); }       // wrapping: the candy is turned by one hand in the other
+      else [g0, g1].forEach((g, i) => w.go(i, (t) => plus(H, [g[0], g[1] + 2.2 * Math.abs(wave(t))]), t1, 0.05));                         // weighing: both hands bounce it a little
+    });
+    F.later(tp + 0.6, () => { it.keep = work(it, st, false); });
+    F.later(t2, () => {
+      it.busy = false; it.rot = null;
+      if (it.keep) {
+        const tr = t2 + 0.32, born = tr - st.put / F.V;                                   // set down where the line will be at that moment
+        F.give(it, w, 1); w.go(0, null, t2, 0.36);
+        w.go(1, (t) => { const b = P(F.V * (t - born), BY, F.TOP); return [b[0] + g1[0], b[1] - r + g1[1]]; }, t2, 0.32);
+        F.later(tr, () => { it.hand = null; it.state = "line"; it.born = born; it.clear = st.put + 0.75; w.go(1, null, tr, 0.36); });
+        F.later(tr + 0.25, () => { if (st.cur === it) st.cur = null; });
+      } else {
+        const tr = t2 + 0.2;
+        w.go(1, null, t2, 0.36); w.go(0, [w.foot[0] - 31, w.foot[1] - 27], t2, 0.2);     // a short swing towards the bin
+        F.later(tr, () => { it.hand = null; it.state = "out"; F.drop(it, it.pos, st.bin, tr); w.go(0, null, tr, 0.42); });
+        F.later(tr + 0.4, () => { if (st.cur === it) st.cur = null; });
+      }
+    });
+  }
+  /* a worker who only watches taps each candy as it goes by, and follows it with the eyes */
+  function touch(st, it, tp) {
+    it.done++; st.cur = it; st.next = null; work(it, st, false); it.clear = st.put + 0.75;
+    F.later(tp + 0.1, () => st.who.go(0, null, tp + 0.1, 0.4));
+    F.later(tp + 0.6, () => { if (st.cur === it) st.cur = null; });
+  }
+  /* each worker keeps an eye on the next candy, and starts to reach a moment before it arrives */
+  function attend(st, now) {
+    const w = st.who, it = st.cur || st.next || items.find((c) => c.state === "line" && c.done === st.i);
+    w.look(it && it.pos && F.V * (now - it.born) > st.pick - 2.4 ? () => (it.pos ? mid(it) : null) : null);
+    if (st.cur || st.next || !it) return;
+    const tp = it.born + st.pick / F.V;
+    if (tp - now > LEAD) return;
+    st.next = it;
+    const g = st.kind === "watch" ? [0, -it.r * U] : F.grasp(0, it.r * U);
+    w.go(0, () => it.pos && plus(mid(it), g), now, Math.max(0.12, tp - now));
+    F.later(tp, () => (st.kind === "watch" ? touch : take)(st, it, tp));
   }
 
   function place(it, now) {
+    if (it.state === "hand") { F.put(it, F.carried(it), { air: true, low: true, busy: it.busy, rot: it.rot ? it.rot(now) : 0 }); return; }
     if (it.state !== "line") return;
-    const x = F.V * (now - it.born), next = stations[it.done];
-    if (!it.act && next && x >= next.pick) { it.act = { st: next, t0: now, did: false }; next.cur = it; it.done++; }
-    let p = P(x, BY, F.TOP), o = {};
-    if (it.act) {
-      const a = it.act, u = (now - a.t0) / HOLD;
-      if (a.st.kind !== "watch") {
-        // off the line and up to the chest, worked on there, then down again a little further along, where the line has moved to meanwhile
-        const from = P(a.st.pick, BY, F.TOP), to = P(a.st.pick + F.V * HOLD, BY, F.TOP), c = a.st.who.chest(it.r * U);
-        const up = ease(u / 0.3), down = ease((u - 0.7) / 0.3), q = u < 0.5 ? [from[0] + (c[0] - from[0]) * up, from[1] + (c[1] - from[1]) * up] : [c[0] + (to[0] - c[0]) * down, c[1] + (to[1] - c[1]) * down];
-        p = [q[0], q[1] - 5 * Math.sin(Math.PI * (u < 0.5 ? up : down))];
-        it.clear = a.st.pick + F.V * HOLD + 0.75;
-        o = { air: u > 0.06 && u < 0.94, low: u > 0.06, busy: u > 0.3 && u < 0.7, rot: a.st.kind === "price" && u > 0.3 && u < 0.7 ? 10 * Math.sin((u - 0.3) * Math.PI * 7.5) : 0 };
-      }
-      if (u >= 0.5 && !a.did) { a.did = true; work(it, a.st, now, false); if (it.state !== "line") { a.st.cur = null; return; } }
-      if (u >= 1) { it.act = null; if (a.st.cur === it) a.st.cur = null; p = P(x, BY, F.TOP); o = {}; }
-    }
-    if (!it.act && it.clear) { if (x < it.clear) o.low = true; else it.clear = null; }     // its tag stays low until it is clear of the worker
+    const x = F.V * (now - it.born), o = {};
+    if (it.clear) { if (x < it.clear) o.low = true; else it.clear = null; }     // its tag stays low until it is clear of the worker
     if (x >= X1) { it.state = "out"; F.drop(it, P(X1, BY, F.TOP), ship, now); return; }
-    F.put(it, p, o);
+    F.put(it, P(x, BY, F.TOP), o);
     it.el.style.opacity = Math.max(0, Math.min(1, (x - 0.05) / 0.3));
-  }
-
-  function workers(now, dt) {
-    stations.forEach((st) => {
-      let h = [null, null];
-      const it = st.cur || items.find((c) => c.state === "line" && c.done === stations.indexOf(st) && F.V * (now - c.born) > st.pick - 0.3);    // the next candy is reached for a moment before it is taken
-      if (it && it.pos) { const mid = [it.pos[0], it.pos[1] - it.r * U]; h = st.kind === "watch" ? [[mid[0], mid[1] - it.r * U], null] : F.grip(mid, it.r * U * 0.85); }
-      else if (st.toss && now - st.let < 0.16 && st.toss.pos) h = [[st.toss.pos[0], st.toss.pos[1] - 12], null];     // the hand follows a candy it throws away
-      st.who.pose(now, dt, h);
-    });
   }
 
   /* labels: each scene names only what it is about */
@@ -121,18 +148,19 @@
     nextBorn = -X1 / F.V + 0.4;
     while (nextBorn <= 0) {
       const it = newCandy(nextBorn), x = -F.V * it.born;
-      while (it.state === "line" && it.done < stations.length && x >= stations[it.done].pick) work(it, stations[it.done++], 0, true);
+      while (it.state === "line" && it.done < stations.length && x >= stations[it.done].pick) { if (!work(it, stations[it.done++], true)) { it.state = "out"; it.el.remove(); } }
       nextBorn += gap();
     }
+    items = items.filter((it) => it.state === "line");
     tick(0, 0);
   }
 
   function tick(dt, now) {
     while (nextBorn <= now) { newCandy(nextBorn); nextBorn += gap(); }
-    items.forEach((it) => place(it, now));
-    items = items.filter((it) => it.state === "line");
     F.run(now);
-    workers(now, dt);
+    stations.forEach((st) => { attend(st, now); st.who.pose(now, dt); });
+    items.forEach((it) => place(it, now));
+    items = items.filter((it) => it.state !== "out");
     line.update(now); hands(now);
   }
 

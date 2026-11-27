@@ -90,7 +90,7 @@ const Story = (() => {
     return shape(body, col, o.w ?? 1.2) + shape(top, o.top ?? lighter(col), o.w ?? 1.2);
   }
 
-  /* ----- people: flat paper dolls, feet at (0, 0), about 86 tall with the hat ----- */
+  /* ----- people: flat paper dolls, feet at (0, 0), about 86 tall with the hat. The hips are at y = -12, the neck at y = -46. ----- */
   function doll(o = {}) {
     const look = o.look ?? 0, skin = PAL.skin[look], hair = PAL.hair[look], coat = o.coat ?? PAL.blue;
     let h = `<ellipse cx="0" cy="1.5" rx="20" ry="6.5" fill="#8097b8" opacity=".5"/>`;
@@ -98,18 +98,20 @@ const Story = (() => {
       h += shape(`M${s * 6 - 3.2} -13L${s * 6 - 3.2} -3L${s * 6 + 3.2} -3L${s * 6 + 3.2} -13Z`, "#66738c", 1.2);
       h += shape(`M${s * 6 - 4.4} -3.4Q${s * 6 - 5} 0.8 ${s * 6} 0.8Q${s * 6 + 5} 0.8 ${s * 6 + 4.4} -3.4Z`, "#9a6b4c", 1.2);
     });
+    h += `<g class="top">`;          // everything above the hips, so that a worker can bend at the waist
     h += shape("M-8.5 -45C-13.5 -45 -15 -40 -16 -34L-20 -15C-21.5 -9 -17 -8.5 -12 -8.5L12 -8.5C17 -8.5 21.5 -9 20 -15L16 -34C15 -40 13.5 -45 8.5 -45Z", coat, 1.5);
     if (o.apron !== false) h += shape("M-6.5 -39L6.5 -39L10.5 -11.5L-10.5 -11.5Z", PAL.white, 1.1);
+    h += `<g class="head">`;         // the head can tilt, and the eyes can look at the work
     h += shape("M-13.6 -57A13.6 13.6 0 1 0 13.6 -57A13.6 13.6 0 1 0 -13.6 -57Z", skin, 1.5);
     h += `<path d="M-13.4 -59C-14 -66 -8 -70.5 0 -70.5C8 -70.5 14 -66 13.4 -59C9 -62.5 4 -63.5 0 -63.5C-4 -63.5 -9 -62.5 -13.4 -59Z" fill="${hair}"/>`;
-    h += dot(-5, -55.5, 1.7, INK, 0) + dot(5, -55.5, 1.7, INK, 0);
+    h += `<g class="eyes">${dot(-5, -55.5, 1.7, INK, 0) + dot(5, -55.5, 1.7, INK, 0)}</g>`;
     h += `<circle cx="-8.6" cy="-51.4" r="3.1" fill="#ee9f97" opacity=".6"/><circle cx="8.6" cy="-51.4" r="3.1" fill="#ee9f97" opacity=".6"/>`;
     h += `<path class="ink" d="M-3 -50.2Q0 -47.6 3 -50.2" stroke-width="1.2"/>`;
     if (o.hat !== false) {
       h += shape("M-10.5 -67C-17.5 -70 -16 -82.5 -6.5 -80.5C-4 -87 6 -87 8 -80.5C16.5 -82.5 17.5 -70 10.5 -67Z", PAL.white, 1.4);
       h += shape("M-11 -70L11 -70L11 -64.5L-11 -64.5Z", PAL.white, 1.2);
     }
-    return h;
+    return h + "</g></g>";
   }
   /* One arm, hanging from (0, 0). The episode turns it about the shoulder. tool: "paddle" for a small wooden pusher. */
   function arm(o = {}) {

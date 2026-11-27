@@ -38,7 +38,7 @@ Rules for a story:
 
 - One room seen from a fixed isometric view. The lines run from the upper left to the lower right, and until Pause.
 - A story follows its lab tab by tab: the same data (key, value, time), the same rule, the same output. Only the words and the props change.
-- The worker visibly does the work, and moves like a person: stands behind the line, which is at hip height, takes a candy when it is within reach, works on it in front of the chest and puts it down again. Arms have elbows and a fixed length; nothing flies into a hand from across the room.
+- The worker visibly does the work, and moves like a person. The eyes go to the candy before a hand does. One hand reaches out and meets the candy as it arrives, lifts it in front of the belly, and the other hand joins for the work; then one hand sets it down again or tosses it away, and both hands go back to the sides. A thing in a hand goes where the hand goes; nothing flies into a hand. Hands start and stop gently, elbows stay low and close, and the body bends at the hips towards the work.
 - A join is a note from the recipe sheet stuck on the candy: the worker finds the row that belongs to the candy and sticks a copy of it on.
 - Keep every element clean and clear: nothing in the room that the scene does not use, and nothing overlapping.
 - What a worker has to remember is a thing in the room (a tally board, a rack), and a result that is not the thing itself is a card that travels out on its own line.

@@ -9,7 +9,7 @@ const Factory = (k) => {
   const FLAVORS = ["a", "b", "c"];
   const NAMES = { a: "ORANGE", b: "MINT", c: "GRAPE" };
   const path = (pts) => "M" + pts.map((p) => f(p[0]) + " " + f(p[1])).join("L") + "Z";
-  let uid = 0, tweens = [];
+  let uid = 0, tweens = [], jobs = [];
 
   /* text that lies on a wall: the left wall is the one the lines come through, the back wall is the long one behind */
   const onLeft = (y, z) => { const p = P(0, y, z); return `matrix(${CS} ${-SN} 0 1 ${f(p[0])} ${f(p[1])})`; };
@@ -97,45 +97,66 @@ const Factory = (k) => {
   }
 
   /* ----- a worker: a paper doll that stands behind a line and works with its hands -----
-     Each arm has an elbow and a fixed length, so a hand only goes where an arm can reach.
-     The line is at hip height. A thing that passes at x = worker.x + GAP is right in front of the worker. */
-  const GAP = 0.75, ARM = 17 * MAN;                 // how far behind the middle of a line a worker stands; half the length of an arm
+     The line is at hip height. A thing that passes at x = worker.x + GAP is right in front of the worker.
+     The worker moves the way a person does at a bench: the eyes go to a thing first, one hand reaches for it on a smooth
+     path that starts and ends gently, the body bends at the waist towards the work, the elbows stay low and close,
+     and a thing in a hand goes wherever that hand goes. An episode says where each hand should be and by when. */
+  const GAP = 0.75, ARM = 17 * MAN, HIP = -12, NECK = -46;       // ARM is half the length of an arm; hips and neck in doll units
+  const smooth = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * u * (10 - 15 * u + 6 * u * u));    // the speed of a reaching hand: slow, fast, slow
+  const at = (p, now) => (typeof p === "function" ? p(now) : p);
   function worker(L, o) {
-    const foot = P(o.x, o.y, 0), look = o.look ?? 0, coat = o.coat ?? PAL.blue, wide = 6.4 * MAN, phase = o.phase ?? 0;
-    const body = k.node(L.dolls, `<g transform="scale(${MAN})">${k.doll({ look, coat })}</g>`);
+    const foot = P(o.x, o.y, 0), [fx, fy] = foot, look = o.look ?? 0, coat = o.coat ?? PAL.blue, wide = 6.4 * MAN, phase = o.phase ?? 0;
+    const body = k.node(L.dolls, `<g transform="scale(${MAN})">${k.doll({ look, coat })}</g>`, `transform="translate(${f(fx)} ${f(fy)})"`);
+    const top = body.querySelector(".top"), head = body.querySelector(".head"), eyes = body.querySelector(".eyes");
     const arms = k.SHOULDER.map(() => k.node(L.arms, `<path class="ink" stroke-width="${f(wide + 2.6)}"/><path fill="none" stroke="${coat}" stroke-width="${f(wide)}" stroke-linecap="round" stroke-linejoin="round"/>${k.dot(0, 0, f(4.2 * MAN), PAL.skin[look], 1.2)}`));
-    const hand = [null, null];
-    let lean = 0, shift = 0;
+    const rest = (i) => [fx + (i ? 17 : -17), fy - 19];            // hands at ease: low, at the worker's sides
+    const hands = [0, 1].map((i) => ({ from: rest(i), to: rest(i), t0: -9, dur: 0.1, pos: rest(i), bend: 1 }));
+    let lean = 0, tilt = 0, eye = [0, 0], gaze = null;
     return {
-      foot, x: o.x, y: o.y,
-      /* where the worker holds a thing to work on it: in front of the chest. Returns where the foot of a thing h tall goes. */
-      chest: (h = R * U) => [foot[0], foot[1] - 34 * MAN + h],
-      /* hands: a sheet point for each hand, or null to let that arm hang. A point out of reach is reached for, a point far away is ignored. */
-      pose(now, dt, want = [null, null]) {
-        const q = 1 - Math.exp(-dt * 12), near = 1 - Math.exp(-dt * 32), [fx, fy] = foot;
-        const live = want.filter(Boolean), aim = live.length ? live.reduce((a, p) => a + p[0], 0) / live.length - fx : 0;
-        lean += (Math.max(-3, Math.min(3, aim / 10)) - lean) * q; shift += (Math.max(-4, Math.min(4, aim / 9)) - shift) * q;
-        const tilt = lean + Math.sin(now * 1.3 + phase) * 0.5, bob = Math.sin(now * 2 + phase) * 0.5, a = (tilt * Math.PI) / 180, bx = fx + shift, by = fy + bob;
-        body.setAttribute("transform", `translate(${f(bx)} ${f(by)}) rotate(${tilt.toFixed(2)})`);
+      foot, x: o.x, y: o.y, rest,
+      /* the middle of a thing while it is worked on: in front of the belly, where hands work */
+      hold: [fx, fy - 29],
+      /* where hand i is now (0 is the hand on the left of the sheet) */
+      at: (i) => hands[i].pos,
+      /* send hand i to a point, or to a point that moves (a function of time), to arrive dur seconds from now; no point means back to rest */
+      go(i, to, now, dur = 0.3) { const h = hands[i]; h.from = [h.pos[0], h.pos[1]]; h.to = to || rest(i); h.t0 = now; h.dur = Math.max(0.05, dur); },
+      /* what the worker looks at: a point, a function of time, or nothing */
+      look(p) { gaze = p; },
+      pose(now, dt) {
+        const q = (rate) => 1 - Math.exp(-dt * rate);
+        hands.forEach((h) => { const e = smooth((now - h.t0) / h.dur), t = at(h.to, now) || h.pos; h.pos = [h.from[0] + (t[0] - h.from[0]) * e, h.from[1] + (t[1] - h.from[1]) * e]; });
+        // the upper body bends at the hips towards where the hands are
+        const mid = (hands[0].pos[0] + hands[1].pos[0]) / 2 - fx;
+        lean += (Math.max(-7, Math.min(7, mid / 3.2)) - lean) * q(9);
+        const a = (lean * Math.PI) / 180, breath = Math.sin(now * 1.9 + phase) * 0.45;
+        top.setAttribute("transform", `translate(0 ${breath.toFixed(2)}) rotate(${lean.toFixed(2)} 0 ${HIP})`);
+        const world = (x, y) => [fx + MAN * (x * Math.cos(a) - (y - HIP) * Math.sin(a)), fy + MAN * (HIP + breath + x * Math.sin(a) + (y - HIP) * Math.cos(a))];
+        // the head tilts a little towards what the eyes are on; now and then the eyes blink
+        const g = gaze && at(gaze, now), face = world(0, -56);
+        let want = [0, 0], turn = 0;
+        if (g) { const dx = g[0] - face[0], dy = g[1] - face[1], d = Math.hypot(dx, dy) || 1; want = [(dx / d) * 1.5, (dy / d) * 1.3]; turn = Math.max(-6, Math.min(6, dx / 7)); }
+        tilt += (turn - tilt) * q(10); eye[0] += (want[0] - eye[0]) * q(16); eye[1] += (want[1] - eye[1]) * q(16);
+        const shut = (now * 0.27 + phase * 0.31) % 1 < 0.03 ? 0.15 : 1;
+        head.setAttribute("transform", `rotate(${tilt.toFixed(2)} 0 ${NECK})`);
+        eyes.setAttribute("transform", `translate(${eye[0].toFixed(2)} ${(eye[1] - 55.5 * (shut - 1)).toFixed(2)}) scale(1 ${shut})`);
+        // each arm: shoulder, elbow, hand. The elbow hangs low and close; an arm that comes towards the reader looks shorter.
         k.SHOULDER.forEach(([sx, sy], i) => {
-          const side = i ? 1 : -1, S = [bx + MAN * (sx * Math.cos(a) - sy * Math.sin(a)), by + MAN * (sx * Math.sin(a) + sy * Math.cos(a))];
-          let T = want[i];
-          if (T && Math.hypot(T[0] - S[0], T[1] - S[1]) > ARM * 3.2) T = null;
-          if (!T) T = [S[0] + side * 6, S[1] + ARM * 1.62];                 // at rest the arm hangs, a little bent
-          const h = hand[i] || (hand[i] = [T[0], T[1]]), far = Math.hypot(T[0] - h[0], T[1] - h[1]), e = far < 10 ? near : q;
-          h[0] += (T[0] - h[0]) * e; h[1] += (T[1] - h[1]) * e;
-          let vx = h[0] - S[0], vy = h[1] - S[1], d = Math.hypot(vx, vy) || 1;
-          const reach = Math.min(d, ARM * 2 - 0.6), H = [S[0] + (vx / d) * reach, S[1] + (vy / d) * reach], off = Math.sqrt(Math.max(0, ARM * ARM - (reach * reach) / 4));
-          let px = -vy / d, py = vx / d; if (px * side * 0.5 + py * 0.85 < 0) { px = -px; py = -py; }     // the elbow points out and down
-          const E = [(S[0] + H[0]) / 2 + px * off, (S[1] + H[1]) / 2 + py * off], path = `M${f(S[0])} ${f(S[1])}L${f(E[0])} ${f(E[1])}L${f(H[0])} ${f(H[1])}`;
+          const side = i ? 1 : -1, h = hands[i], S = world(sx, sy), vx = h.pos[0] - S[0], vy = h.pos[1] - S[1], d = Math.hypot(vx, vy) || 1;
+          const reach = Math.min(d, ARM * 2 - 0.6), H = [S[0] + (vx / d) * reach, S[1] + (vy / d) * reach], off = Math.min(Math.sqrt(Math.max(0, ARM * ARM - (reach * reach) / 4)), ARM * 0.4);
+          const px = -vy / d, py = vx / d;
+          h.bend += ((px * side * 0.6 + py * 0.8 >= 0 ? 1 : -1) - h.bend) * q(14);
+          const E = [(S[0] + H[0]) / 2 + px * off * h.bend, (S[1] + H[1]) / 2 + py * off * h.bend], path = `M${f(S[0])} ${f(S[1])}L${f(E[0])} ${f(E[1])}L${f(H[0])} ${f(H[1])}`;
           const [outer, inner, palm] = arms[i].children;
           outer.setAttribute("d", path); inner.setAttribute("d", path); palm.setAttribute("cx", f(H[0])); palm.setAttribute("cy", f(H[1]));
         });
       },
     };
   }
-  /* both hands on a thing: p is the middle of the thing on the sheet, r half its width */
-  const grip = (p, r = 10) => (p ? [[p[0] - r, p[1]], [p[0] + r, p[1]]] : [null, null]);
+  /* where a hand takes hold of a round thing r wide, measured from the middle of the thing: the first hand from above, the second from the side */
+  const grasp = (i, r) => (i ? [r * 0.78, r * 0.1] : [-r * 0.5, -r * 0.5]);
+  /* a thing in a hand goes where the hand goes */
+  function give(it, who, i) { const r = it.r * U, g = grasp(i, r); it.hand = { who, i, off: [-g[0], r - g[1]] }; }
+  const carried = (it) => { const h = it.hand.who.at(it.hand.i); return [h[0] + it.hand.off[0], h[1] + it.hand.off[1]]; };
 
   /* ----- things that travel ----- */
   const spark = (r) => `<path class="ink spark" d="M${f(-r * 1.25)} ${f(-r * 0.9)}L${f(-r * 1.75)} ${f(-r * 1.3)}M0 ${f(-r * 1.5)}L0 ${f(-r * 2.1)}M${f(r * 1.25)} ${f(-r * 0.9)}L${f(r * 1.75)} ${f(-r * 1.3)}" stroke-width="1.5"/>`;
@@ -214,7 +235,15 @@ const Factory = (k) => {
 
   /* ----- small moves: an element travels from one sheet point to another, on an arc if wanted ----- */
   function fly(el, a, b, t0, dur, o = {}) { const t = { el, a, b, t0, dur, ...o }; tweens.push(t); return t; }
+  /* do something at a later moment; the moves of a worker are a row of such moments */
+  const later = (t, fn) => jobs.push({ t, fn });
   function run(now) {
+    for (;;) {
+      let j = -1;
+      jobs.forEach((q, i) => { if (q.t <= now && (j < 0 || q.t < jobs[j].t)) j = i; });
+      if (j < 0) break;
+      jobs.splice(j, 1)[0].fn(now);
+    }
     const cur = tweens; tweens = [];          // a move that ends may start the next one, so new moves collect in a fresh list
     const keep = cur.filter((t) => {
       const u = (now - t.t0) / t.dur; if (u < 0) return true;
@@ -227,13 +256,13 @@ const Factory = (k) => {
     });
     tweens = keep.concat(tweens);
   }
-  const reset = () => { tweens = []; };
+  const reset = () => { tweens = []; jobs = []; };
   /* fall into a bin: over its edge, then down out of sight, then gone */
   function drop(it, from, b, now, done) {
     it.el.classList.add("air");
     fly(it.el, from, b.mouth, now, 0.42, { arc: 26, it, done: () => fly(it.el, b.mouth, b.floor, now + 0.42, 0.22, { it, done: () => { it.el.remove(); if (done) done(); } }) });
   }
 
-  return { FX, FY, WH, TOP, BW, V, MAN, R, R_SMALL, FLAVORS, NAMES, GAP, path, onLeft, onBack, panel, room, clockHands, belt, rack, bin, worker, grip,
-    thing, redraw, put, card, cardArt, flagArt, noteArt, fly, run, reset, drop };
+  return { FX, FY, WH, TOP, BW, V, MAN, R, R_SMALL, FLAVORS, NAMES, GAP, path, onLeft, onBack, panel, room, clockHands, belt, rack, bin, worker, grasp, give, carried,
+    thing, redraw, put, card, cardArt, flagArt, noteArt, fly, later, run, reset, drop };
 };
